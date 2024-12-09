@@ -1,4 +1,7 @@
-pbr
 aprsd>=3.4.0
-oslo_config
 click
+flask
+Flask-HTTPAuth
+oslo_config
+python-socketio
+werkzeug

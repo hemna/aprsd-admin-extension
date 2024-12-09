@@ -1,1 +1,1 @@
-from aprsd_admin_extension.cmds import admin  # noqa: F401
+from aprsd_admin_extension.cmds import web  # noqa: F401
