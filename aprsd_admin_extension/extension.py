@@ -1,0 +1,1 @@
+from aprsd_admin_extension.cmds import admin  # noqa: F401

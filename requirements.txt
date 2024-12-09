@@ -1,0 +1,4 @@
+pbr
+aprsd>=3.4.0
+oslo_config
+click
