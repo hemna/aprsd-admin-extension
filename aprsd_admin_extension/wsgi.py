@@ -32,7 +32,7 @@ ADMIN_COMMAND = os.environ.get("APRSD_ADMIN_COMMAND", False)
 auth = HTTPBasicAuth()
 users: dict[str, str] = {}
 app = Flask(
-    "aprsd",
+    "aprsd_admin_extension",
     static_url_path="/static",
     static_folder="web/admin/static",
     template_folder="web/admin/templates",
