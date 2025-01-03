@@ -36,13 +36,13 @@ APRSD Admin Interface
 Features
 --------
 
-* TODO
+* The web Admin interface for the aprsd daemon
 
 
 Requirements
 ------------
 
-* TODO
+* This requires aprsd > 3.4.0
 
 
 Installation
@@ -85,7 +85,7 @@ please `file an issue`_ along with a detailed description.
 Credits
 -------
 
-This project was generated from `@hemna`_'s `APRSD Extension Python Cookiecutter`_ template.
+This project was generated from `@hemna`_'s APRSD Extension Python Cookiecutter_ template.
 
 .. _@hemna: https://github.com/hemna
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
