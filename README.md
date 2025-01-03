@@ -15,7 +15,7 @@
 > Legal operation of this software requires an amateur radio license and a valid call sign.
 
 > [!NOTE]
-> Star this repo to follow our progress! This code is under active development, and contributions are both welcomed and appreciated. See [CONTRIBUTING.md](<https://github.com/afourney/aprstastic/blob/main/CONTRIBUTING.md>) for details.
+> Star this repo to follow our progress! This code is under active development, and contributions are both welcomed and appreciated. See [CONTRIBUTING.md](<https://github.com/hemna/aprsd-admin-extension/blob/main/CONTRIBUTING.md>) for details.
 
 ## Features
 
