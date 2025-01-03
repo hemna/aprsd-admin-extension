@@ -1,4 +1,4 @@
-# APRSD Admin Interfaci
+# APRSD Admin Web Interface
 
 [![PyPI](https://img.shields.io/pypi/v/aprsd-admin-extension.svg)](https://pypi.org/project/aprsd-admin-extension/)
 [![Status](https://img.shields.io/pypi/status/aprsd-admin-extension.svg)](https://pypi.org/project/aprsd-admin-extension/)
@@ -15,7 +15,7 @@
 > Legal operation of this software requires an amateur radio license and a valid call sign.
 
 > [!NOTE]
-> Star this repo to follow our progress! This code is under active development, and contributions are both welcomed and appreciated. See [CONTRIBUTING.md](<https://github.com/hemna/aprsd-admin-extension/blob/main/CONTRIBUTING.md>) for details.
+> Star this repo to follow our progress! This code is under active development, and contributions are both welcomed and appreciated. See [CONTRIBUTING.md](<https://github.com/hemna/aprsd-admin-extension/blob/master/CONTRIBUTING.md>) for details.
 
 ## Features
 
