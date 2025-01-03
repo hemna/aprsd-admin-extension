@@ -6,8 +6,6 @@
 [![License](https://img.shields.io/pypi/l/aprsd-admin-extension)](https://opensource.org/licenses/Apache%20Software%20License%202.0)
 
 [![Read the documentation at https://aprsd-admin-extension.readthedocs.io/](https://img.shields.io/readthedocs/aprsd-admin-extension/latest.svg?label=Read%20the%20Docs)](https://aprsd-admin-extension.readthedocs.io/)
-[![Tests](https://github.com/hemna/aprsd-admin-extension/workflows/Tests/badge.svg)](https://github.com/hemna/aprsd-admin-extension/actions?workflow=Tests)
-[![Codecov](https://codecov.io/gh/hemna/aprsd-admin-extension/branch/main/graph/badge.svg)](https://codecov.io/gh/hemna/aprsd-admin-extension)
 
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
