@@ -1,23 +1,41 @@
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v3.4.0
+  rev: v5.0.0
   hooks:
     - id: trailing-whitespace
     - id: end-of-file-fixer
     - id: check-yaml
-    - id: check-added-large-files
     - id: detect-private-key
     - id: check-merge-conflict
     - id: check-case-conflict
     - id: check-docstring-first
     - id: check-builtin-literals
+    - id: check-illegal-windows-names
 
 - repo: https://github.com/asottile/setup-cfg-fmt
-  rev: v1.16.0
+  rev: v2.5.0
   hooks:
     - id: setup-cfg-fmt
 
-- repo: https://github.com/dizballanze/gray
-  rev: v0.10.1
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.8.4
   hooks:
-    - id: gray
+    - id: ruff
+    ###### Relevant part below ######
+    - id: ruff
+      args: ["check", "--select", "I", "--fix"]
+    ###### Relevant part above ######
+    - id: ruff-format
+
+- repo: https://github.com/astral-sh/uv-pre-commit
+  # uv version.
+  rev: 0.5.11
+  hooks:
+    # Compile requirements
+    - id: pip-compile
+      name: pip-compile requirements.in
+      args: [requirements.in, -o, requirements.txt]
+    - id: pip-compile
+      name: pip-compile requirements-dev.in
+      args: [requirements-dev.in, -o, requirements-dev.txt]
+      files: ^requirements-dev\.(in|txt)$
