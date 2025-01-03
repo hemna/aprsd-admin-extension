@@ -22,6 +22,10 @@ docs: build
 	cp Changelog docs/changelog.rst
 	tox -edocs
 
+changelog: dev
+	npm i -g auto-changelog
+	auto-changelog -l false --sort-commits date -o ChangeLog.md
+
 clean: clean-build clean-pyc clean-test clean-pyenv ## remove all build, test, coverage and Python artifacts
 
 clean-pyenv:
