@@ -19,6 +19,8 @@ from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg, generator
 from werkzeug.security import check_password_hash
 
+import aprsd_admin_extension
+
 CONF = cfg.CONF
 LOG = logging.getLogger("gunicorn.access")
 logging_queue = queue.Queue()
@@ -119,7 +121,8 @@ def index():
         initial_stats=json.dumps(stats, cls=aprsd_json.SimpleJSONEncoder),
         aprs_connection=aprs_connection,
         callsign=CONF.callsign,
-        version=aprsd.__version__,
+        version=aprsd_admin_extension.__version__,
+        aprsd_version=aprsd.__version__,
         config_json=json.dumps(
             entries,
             indent=4,
