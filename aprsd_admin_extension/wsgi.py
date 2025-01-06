@@ -1,3 +1,4 @@
+import contextlib
 import datetime
 import importlib.metadata as imp
 import io
@@ -7,17 +8,16 @@ import os
 import queue
 
 import aprsd
+import flask
+import socketio
 from aprsd import cli_helper, client, conf, packets, plugin, threads
 from aprsd.log import log
 from aprsd.threads import stats as stats_threads
 from aprsd.utils import json as aprsd_json
-import flask
 from flask import Flask, request
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg, generator
-import socketio
 from werkzeug.security import check_password_hash
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger("gunicorn.access")
@@ -85,26 +85,23 @@ def index():
         else:
             aprs_connection = "APRS-IS"
         aprs_connection = (
-            "APRS-IS Server: <a href='http://status.aprs2.net' >"
-            "{}</a>".format(aprs_connection)
+            "APRS-IS Server: <a href='http://status.aprs2.net' >" "{}</a>".format(
+                aprs_connection
+            )
         )
     else:
         # We might be connected to a KISS socket?
         if client.KISSClient.kiss_enabled():
             transport = client.KISSClient.transport()
             if transport == client.TRANSPORT_TCPKISS:
-                aprs_connection = (
-                    "TCPKISS://{}:{}".format(
-                        CONF.kiss_tcp.host,
-                        CONF.kiss_tcp.port,
-                    )
+                aprs_connection = "TCPKISS://{}:{}".format(
+                    CONF.kiss_tcp.host,
+                    CONF.kiss_tcp.port,
                 )
             elif transport == client.TRANSPORT_SERIALKISS:
-                aprs_connection = (
-                    "SerialKISS://{}@{} baud".format(
-                        CONF.kiss_serial.device,
-                        CONF.kiss_serial.baudrate,
-                    )
+                aprs_connection = "SerialKISS://{}@{} baud".format(
+                    CONF.kiss_serial.device,
+                    CONF.kiss_serial.baudrate,
                 )
 
     if client_stats:
@@ -125,8 +122,10 @@ def index():
         callsign=CONF.callsign,
         version=aprsd.__version__,
         config_json=json.dumps(
-            entries, indent=4,
-            sort_keys=True, default=str,
+            entries,
+            indent=4,
+            sort_keys=True,
+            default=str,
         ),
         plugin_count=plugin_count,
         thread_count=thread_count,
@@ -214,23 +213,19 @@ def log_entries():
 
 
 class LogUpdateThread(threads.APRSDThread):
-
     def __init__(self, logging_queue=None):
         super().__init__("LogUpdate")
         self.logging_queue = logging_queue
 
     def loop(self):
         if sio:
-            try:
-                log_entry = self.logging_queue.get(block=True, timeout=1)
-                if log_entry:
+            with contextlib.suppress(queue.Empty):
+                if log_entry := self.logging_queue.get(block=True, timeout=1):
                     sio.emit(
                         "log_entry",
                         log_entry,
                         namespace="/logs",
                     )
-            except queue.Empty:
-                pass
         return True
 
 
@@ -241,7 +236,8 @@ class LoggingNamespace(socketio.Namespace):
         global sio, logging_queue
         LOG.info(f"LOG on_connect {sid}")
         sio.emit(
-            "connected", {"data": "/logs Connected"},
+            "connected",
+            {"data": "/logs Connected"},
             namespace="/logs",
         )
         self.log_thread = LogUpdateThread(logging_queue=logging_queue)
@@ -262,7 +258,9 @@ def init_app(config_file=None, log_level=None, socket_io=None):
         config_file = default_config_file
 
     CONF(
-        [], project="aprsd", version=aprsd.__version__,
+        [],
+        project="aprsd",
+        version=aprsd.__version__,
         default_config_files=[config_file],
     )
 

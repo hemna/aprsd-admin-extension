@@ -147,6 +147,7 @@ function update_packets( data ) {
     if (size_dict(packet_list) == 0 && size_dict(data) > 0) {
         packetsdiv.html('')
     }
+    //console.log( "Update packets called " + Object.keys( data.packets ).length ) ;
     jQuery.each(data.packets, function(i, val) {
         pkt = val;
 
@@ -168,11 +169,11 @@ function update_packets( data ) {
             var from_to = d + " " + t + "&nbsp;&nbsp;&nbsp;&nbsp;" + from_call + " > "
 
             if (val.hasOwnProperty('addresse')) {
-                from_to = from_to + pkt['addresse']
+                from_to += pkt['addresse']
             } else if (pkt.hasOwnProperty('to_call')) {
-                from_to = from_to + pkt['to_call']
+                from_to += pkt['to_call']
             } else if (pkt.hasOwnProperty('format') && pkt['format'] == 'mic-e') {
-                from_to =  from_to + "Mic-E"
+                from_to += "Mic-E"
             }
 
             from_to = from_to + "&nbsp;&nbsp;-&nbsp;&nbsp;" + pkt['raw']
