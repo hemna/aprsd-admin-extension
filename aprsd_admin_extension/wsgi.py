@@ -57,11 +57,10 @@ def _stats():
     stats_obj.load()
     now = datetime.datetime.now()
     time_format = "%m-%d-%Y %H:%M:%S"
-    stats = {
+    return {
         "time": now.strftime(time_format),
         "stats": stats_obj.data,
     }
-    return stats
 
 
 @app.route("/stats")

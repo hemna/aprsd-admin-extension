@@ -17,6 +17,10 @@
 > [!NOTE]
 > Star this repo to follow our progress! This code is under active development, and contributions are both welcomed and appreciated. See [CONTRIBUTING.md](<https://github.com/hemna/aprsd-admin-extension/blob/master/CONTRIBUTING.md>) for details.
 
+
+![Admin Interface](./screenshot.png)
+
+
 ## Features
 
 The web Admin interface for the aprsd daemon
