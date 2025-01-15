@@ -66,3 +66,7 @@ a detailed description.
 This project was generated from [\@hemna](https://github.com/hemna)\'s
 APRSD Extension Python
 [Cookiecutter](https://github.com/audreyr/cookiecutter) template.
+
+### Activity
+
+![Alt](https://repobeats.axiom.co/api/embed/25f696ef8f6fe3586931a33d5c491428d872c152.svg "Repobeats analytics image")
