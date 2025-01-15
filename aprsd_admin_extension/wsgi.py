@@ -251,20 +251,21 @@ class LoggingNamespace(socketio.Namespace):
             self.log_thread.stop()
 
 
-def init_app(config_file=None, log_level=None, socket_io=None):
+def init_app(config_file=None, log_level=None, socket_io=None, init_config=True):
     global sio
     if socket_io:
         sio = socket_io
-    default_config_file = cli_helper.DEFAULT_CONFIG_FILE
-    if not config_file:
-        config_file = default_config_file
 
-    CONF(
-        [],
-        project="aprsd",
-        version=aprsd.__version__,
-        default_config_files=[config_file],
-    )
+    if init_config:
+        default_config_file = cli_helper.DEFAULT_CONFIG_FILE
+        if not config_file:
+            config_file = default_config_file
+        CONF(
+            [],
+            project="aprsd",
+            version=aprsd.__version__,
+            default_config_files=[config_file],
+        )
 
     if not log_level:
         log_level = CONF.logging.log_level

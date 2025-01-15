@@ -89,7 +89,7 @@ def web(ctx):
     async_mode = "threading"
     sio = socketio.Server(logger=True, async_mode=async_mode)
     admin_wsgi.app.wsgi_app = socketio.WSGIApp(sio, admin_wsgi.app.wsgi_app)
-    admin_wsgi.init_app(socket_io=sio)
+    admin_wsgi.init_app(socket_io=sio, init_config=False)
     sio.register_namespace(admin_wsgi.LoggingNamespace("/logs"))
     CONF.log_opt_values(LOG, logging.DEBUG)
     admin_wsgi.app.run(
