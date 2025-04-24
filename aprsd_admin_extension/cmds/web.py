@@ -11,8 +11,8 @@ import socketio
 from aprsd import cli_helper, packets
 from aprsd import main as aprsd_main
 from aprsd import threads as aprsd_threads
-from aprsd.cmds import server
 from aprsd.log import log as aprsd_log
+from aprsd.threads import service
 from loguru import logger
 from oslo_config import cfg
 
@@ -73,7 +73,7 @@ def web(ctx):
     # Dump all the config options now.
     CONF.log_opt_values(LOG, logging.DEBUG)
 
-    server_threads = server.ServerThreads()
+    server_threads = service.ServiceThreads()
     if CONF.aprsd_admin_extension.web_enabled:
         LOG.warning("Registering LogMonitorThread")
         server_threads.register(log_monitor.LogMonitorThread())
