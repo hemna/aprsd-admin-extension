@@ -30,7 +30,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 #
 # This field corresponds to the "Description" metadata field:
 # https://packaging.python.org/specifications/core-metadata/#description-optional
-readme = {file = "README.rst", content-type = "text/x-rst"}
+readme = {file = "README.md", content-type = "text/markdown"}
 
 
 # This is either text indicating the license for the distribution, or a file
@@ -123,6 +123,7 @@ optional-dependencies.dev = {file = ["./requirements-dev.txt"]}
 "Homepage" = "https://github.com/hemna/aprsd-admin-extension"
 "Bug Reports" = "https://github.com/hemna/aprsd-admin-extension/issues"
 "Source" = "https://github.com/hemna/aprsd-admin-extension"
+Documentation = "https://aprsd-admin-extension.readthedocs.io/en/latest/"
 
 # The main entry points for extensions
 [project.entry-points."aprsd.extension"]

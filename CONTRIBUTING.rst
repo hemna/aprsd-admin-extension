@@ -1,0 +1,1 @@
+Contributions are very welcome! To learn more about contributing to APRSD Admin Extension, please see the `Contributor Guide <https://aprsd-admin-extension.readthedocs.io/en/latest/contributing.html>`_.

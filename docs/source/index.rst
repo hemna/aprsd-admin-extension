@@ -1,5 +1,5 @@
-Welcome to APRSD Nearest station plugin's documentation!
-========================================================
+Welcome to APRSD Admin Extension's documentation!
+====================================================
 
 .. toctree::
    :maxdepth: 2
@@ -10,6 +10,7 @@ Welcome to APRSD Nearest station plugin's documentation!
    contributing
    authors
    history
+   apidoc/modules
 
 Indices and tables
 ==================
