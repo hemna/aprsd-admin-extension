@@ -1,197 +1,292 @@
-<html>
-    <head>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-        <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css">
-        <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/jquery-ui.min.js"></script>
-        <script src="https://cdn.socket.io/4.7.1/socket.io.min.js" integrity="sha512-+NaO7d6gQ1YPxvc/qHIqZEchjGm207SszoNeMgppoqD/67fEqmc1edS8zrbxPD+4RQI3gDgT/83ihpFW61TG/Q==" crossorigin="anonymous"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
+    <title>APRSD Admin - {{ callsign }}</title>
 
-        <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.bundle.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <!-- jQuery -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
 
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css">
-        <script src="https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.1/socket.io.min.js" integrity="sha512-+NaO7d6gQ1YPxvc/qHIqZEchjGm207SszoNeMgppoqD/67fEqmc1edS8zrbxPD+4RQI3gDgT/83ihpFW61TG/Q==" crossorigin="anonymous"></script>
 
-        <link rel="stylesheet" href="/static/css/index.css">
-        <link rel="stylesheet" href="/static/css/tabs.css">
-        <link rel="stylesheet" href="/static/css/prism.css">
-        <script src="/static/js/prism.js"></script>
-        <script src="/static/js/main.js"></script>
-        <script src="/static/js/echarts.js"></script>
-        <script src="/static/js/tabs.js"></script>
-        <script src="/static/js/send-message.js"></script>
-        <script src="/static/js/logs.js"></script>
+    <!-- Chart Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-        <script type="text/javascript">
-            var initial_stats = {{ initial_stats|tojson|safe }};
+    <!-- Material Symbols -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 
-            var memory_chart = null
-            var message_chart = null
-            var color = Chart.helpers.color;
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/index.css">
+    <link rel="stylesheet" href="/static/css/tabs.css">
+    <link rel="stylesheet" href="/static/css/prism.css">
 
-            $(document).ready(function() {
-                start_update();
-                start_charts();
-                init_messages();
-                init_logs();
+    <!-- Set theme immediately to prevent flash -->
+    <script>
+        (function() {
+            const theme = localStorage.getItem('aprsd-admin-theme') ||
+                         (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            if (theme === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
 
-                $("#toggleStats").click(function() {
-                    $("#jsonstats").fadeToggle(1000);
-                });
+    <!-- Scripts -->
+    <script src="/static/js/prism.js"></script>
+    <script src="/static/js/theme.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/echarts.js"></script>
+    <script src="/static/js/tabs.js"></script>
+    <script src="/static/js/send-message.js"></script>
+    <script src="/static/js/logs.js"></script>
 
-                // Pretty print the config json so it's readable
-                var cfg_data = $("#configjson").text();
-                var cfg_json = JSON.parse(cfg_data);
-                var cfg_pretty = JSON.stringify(cfg_json, null, '\t');
-                const html_pretty = Prism.highlight( cfg_pretty, Prism.languages.json, 'json');
-                $("#configjson").html(html_pretty);
+    <script type="text/javascript">
+        var initial_stats = {{ initial_stats|tojson|safe }};
+        var packet_list = {};
+        var seen_count = {{ seen_count }};
+        var watch_count = {{ watch_count }};
+        var watch_age = '{{ watch_age }}';
+
+        var memory_chart = null;
+        var message_chart = null;
+        var color = Chart.helpers.color;
+
+        $(document).ready(function() {
+            start_update();
+            start_charts();
+            init_messages();
+            init_logs();
+
+            $("#toggleStats").click(function() {
                 $("#jsonstats").fadeToggle(1000);
-
-                //var log_text_pretty = $('#logtext').text();
-                //const log_pretty = Prism.highlight( log_text_pretty, Prism.languages.log, 'log');
-                //$('#logtext').html(log_pretty);
-
-                $('.ui.accordion').accordion({exclusive: false});
-                $('.menu .item').tab('change tab', 'charts-tab');
             });
-        </script>
-    </head>
 
-    <body>
-        <div class='ui text container'>
-            <h2 class='ui dividing header'>APRSD Admin <span style='color: green;font-size:.7em'>{{ version }}</span></h2>
-        </div>
+            // Pretty print the config json so it's readable
+            var cfg_data = $("#configjson").text();
+            var cfg_json = JSON.parse(cfg_data);
+            var cfg_pretty = JSON.stringify(cfg_json, null, '\t');
+            const html_pretty = Prism.highlight(cfg_pretty, Prism.languages.json, 'json');
+            $("#configjson").html(html_pretty);
 
-        <div class='ui grid text container'>
-            <div class='left floated ten wide column'>
-                <span style='color: green'>{{ callsign }}</span>
-                connected to
-                <span style='color: blue' id='aprs_connection'>{{ aprs_connection|safe }}</span>
+            // Pretty print the raw JSON stats
+            var raw_json_data = $("#jsonstats").text();
+            if (raw_json_data && raw_json_data.trim()) {
+                try {
+                    var raw_json_obj = JSON.parse(raw_json_data);
+                    var raw_json_pretty = JSON.stringify(raw_json_obj, null, '\t');
+                    const raw_html_pretty = Prism.highlight(raw_json_pretty, Prism.languages.json, 'json');
+                    $("#jsonstats").html(raw_html_pretty);
+                } catch (e) {
+                    console.error('Error parsing raw JSON:', e);
+                    // If parsing fails, just highlight as-is
+                    const raw_html_pretty = Prism.highlight(raw_json_data, Prism.languages.json, 'json');
+                    $("#jsonstats").html(raw_html_pretty);
+                }
+            }
+
+            // Initialize Bootstrap tabs
+            var triggerTabList = [].slice.call(document.querySelectorAll('#adminTabs button'));
+            triggerTabList.forEach(function (triggerEl) {
+                var tabTrigger = new bootstrap.Tab(triggerEl);
+                triggerEl.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    tabTrigger.show();
+                });
+            });
+
+            // Show charts tab by default
+            var firstTabEl = document.querySelector('#adminTabs button[data-bs-target="#charts-tab"]');
+            if (firstTabEl) {
+                var firstTab = new bootstrap.Tab(firstTabEl);
+                firstTab.show();
+            }
+
+            // Make toggleAccordion available globally
+            window.toggleAccordion = function(id) {
+                var content = document.getElementById(id + '-content');
+                var header = document.getElementById(id + '-header');
+                var icon = header.querySelector('.accordion-icon');
+
+                if (content.classList.contains('active')) {
+                    content.classList.remove('active');
+                    header.classList.remove('active');
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    content.classList.add('active');
+                    header.classList.add('active');
+                    icon.style.transform = 'rotate(90deg)';
+                }
+            };
+        });
+    </script>
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <div class="header-content">
+                <div class="header-top">
+                    <div class="header-title-row">
+                        <div class="header-title-section">
+                            <h1 class="app-title">APRSD Admin <span class="version-badge">{{ version }}</span></h1>
+                            <div class="connection-info">
+                                <span class="callsign-badge">{{ callsign }}</span>
+                                <span class="connection-text">connected to</span>
+                                <span class="connection-link" id="aprs_connection">{{ aprs_connection|safe }}</span>
+                                <span class="uptime" id="uptime">NONE</span>
+                            </div>
+                        </div>
+                        <div class="theme-toggle-container">
+                            <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+                                <span class="material-symbols-rounded light-icon">light_mode</span>
+                                <span class="material-symbols-rounded dark-icon">dark_mode</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class='right floated four wide column'>
-                <span id='uptime'>NONE</span>
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <ul class="nav nav-tabs modern-tabs" id="adminTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="charts-tab-btn" data-bs-toggle="tab" data-bs-target="#charts-tab" type="button" role="tab">Charts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="msgs-tab-btn" data-bs-toggle="tab" data-bs-target="#msgs-tab" type="button" role="tab">Messages</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="seen-tab-btn" data-bs-toggle="tab" data-bs-target="#seen-tab" type="button" role="tab">Seen List</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="watch-tab-btn" data-bs-toggle="tab" data-bs-target="#watch-tab" type="button" role="tab">Watch List</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="plugin-tab-btn" data-bs-toggle="tab" data-bs-target="#plugin-tab" type="button" role="tab">Plugins</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="threads-tab-btn" data-bs-toggle="tab" data-bs-target="#threads-tab" type="button" role="tab">Threads</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="config-tab-btn" data-bs-toggle="tab" data-bs-target="#config-tab" type="button" role="tab">Config</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="log-tab-btn" data-bs-toggle="tab" data-bs-target="#log-tab" type="button" role="tab">LogFile</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="raw-tab-btn" data-bs-toggle="tab" data-bs-target="#raw-tab" type="button" role="tab">Raw JSON</button>
+                    </li>
+                </ul>
             </div>
-        </div>
+        </header>
 
-        <!-- Tab links -->
-        <div class="ui top attached tabular menu">
-            <div class="active item" data-tab="charts-tab">Charts</div>
-            <div class="item" data-tab="msgs-tab">Messages</div>
-            <div class="item" data-tab="seen-tab">Seen List</div>
-            <div class="item" data-tab="watch-tab">Watch List</div>
-            <div class="item" data-tab="plugin-tab">Plugins</div>
-            <div class="item" data-tab="threads-tab">Threads</div>
-            <div class="item" data-tab="config-tab">Config</div>
-            <div class="item" data-tab="log-tab">LogFile</div>
-            <!-- <div class="item" data-tab="oslo-tab">OSLO CONFIG</div> //-->
-            <div class="item" data-tab="raw-tab">Raw JSON</div>
-        </div>
+        <main class="admin-content">
+            <div class="tab-content" id="adminTabContent">
+                <!-- Charts Tab -->
+                <div class="tab-pane fade show active" id="charts-tab" role="tabpanel">
+                    <h3 class="card-header">Charts</h3>
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <div class="chart-container" id="packetsChart"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="chart-container" id="messagesChart"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="chart-container" id="acksChart"></div>
+                        </div>
+                        <div class="col-12">
+                            <div class="chart-container" id="packetTypesChart"></div>
+                        </div>
+                        <div class="col-12">
+                            <div class="chart-container" id="threadChart"></div>
+                        </div>
+                        <div class="col-12">
+                            <div class="chart-container" id="memChart"></div>
+                        </div>
+                    </div>
+                </div>
 
-        <!-- Tab content -->
-        <div class="ui bottom attached active tab segment" data-tab="charts-tab">
-            <h3 class="ui dividing header">Charts</h3>
-            <div class="ui equal width relaxed grid">
-                <div class="row">
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="packetsChart"></div>
+                <!-- Messages Tab -->
+                <div class="tab-pane fade" id="msgs-tab" role="tabpanel">
+                    <h3 class="card-header">Messages (<span id="packets_count">0</span>)</h3>
+                    <div class="accordion" id="accordion">
+                        <div id="packetsDiv">Loading</div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="messagesChart"></div>
-                    </div>
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="acksChart"></div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="packetTypesChart"></div>
+
+                <!-- Seen List Tab -->
+                <div class="tab-pane fade" id="seen-tab" role="tabpanel">
+                    <div class="tab-content-wrapper">
+                        <h3 class="card-header">Callsign Seen List (<span id="seen_count">{{ seen_count }}</span>)</h3>
+                        <div id="seenDiv">Loading</div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="threadChart"></div>
+
+                <!-- Watch List Tab -->
+                <div class="tab-pane fade" id="watch-tab" role="tabpanel">
+                    <h3 class="card-header">
+                        Callsign Watch List (<span id="watch_count">{{ watch_count }}</span>)
+                        &nbsp;&nbsp;&nbsp;
+                        Notification age - <span id="watch_age">{{ watch_age }}</span>
+                    </h3>
+                    <div id="watchDiv">Loading</div>
+                </div>
+
+                <!-- Plugins Tab -->
+                <div class="tab-pane fade" id="plugin-tab" role="tabpanel">
+                    <div class="tab-content-wrapper">
+                        <h3 class="card-header">Plugins Loaded (<span id="plugin_count">{{ plugin_count }}</span>)</h3>
+                        <div id="pluginDiv">Loading</div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="column">
-                        <div class="ui segment" style="height: 300px" id="memChart"></div>
-                    </div>
+
+                <!-- Threads Tab -->
+                <div class="tab-pane fade" id="threads-tab" role="tabpanel">
+                    <h3 class="card-header">Threads Loaded (<span id="thread_count">{{ thread_count }}</span>)</h3>
+                    <div id="threadsDiv">Loading</div>
                 </div>
-          <!--      <div class="row">
-                    <div id="stats" class="two column">
-                        <button class="ui button" id="toggleStats">Toggle raw json</button>
-                        <pre id="jsonstats" class="language-json">{{ stats }}</pre>
-                    </div> //-->
+
+                <!-- Config Tab -->
+                <div class="tab-pane fade" id="config-tab" role="tabpanel">
+                    <h3 class="card-header">Config</h3>
+                    <pre id="configjson" class="language-json">{{ config_json|safe }}</pre>
+                </div>
+
+                <!-- Log File Tab -->
+                <div class="tab-pane fade" id="log-tab" role="tabpanel">
+                    <h3 class="card-header">LOGFILE</h3>
+                    <pre id="logContainer" style="height: 600px;overflow-y:auto;overflow-x:auto;"><code id="logtext" class="language-log"></code></pre>
+                </div>
+
+                <!-- Raw JSON Tab -->
+                <div class="tab-pane fade" id="raw-tab" role="tabpanel">
+                    <h3 class="card-header">Raw JSON</h3>
+                    <pre id="jsonstats" class="language-json" style="height:600px;overflow-y:auto;">{{ initial_stats|safe }}</pre>
                 </div>
             </div>
+        </main>
 
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="msgs-tab">
-          <h3 class="ui dividing header">Messages (<span id="packets_count">0</span>)</h3>
-          <div class="ui styled fluid accordion" id="accordion">
-              <div id="packetsDiv" class="ui mini text">Loading</div>
-          </div>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="seen-tab">
-            <h3 class="ui dividing header">
-                Callsign Seen List (<span id="seen_count">{{ seen_count }}</span>)
-            </h3>
-            <div id="seenDiv" class="ui mini text">Loading</div>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="watch-tab">
-            <h3 class="ui dividing header">
-                Callsign Watch List (<span id="watch_count">{{ watch_count }}</span>)
-                &nbsp;&nbsp;&nbsp;
-                Notification age - <span id="watch_age">{{ watch_age }}</span>
-            </h3>
-            <div id="watchDiv" class="ui mini text">Loading</div>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="plugin-tab">
-            <h3 class="ui dividing header">
-                Plugins Loaded (<span id="plugin_count">{{ plugin_count }}</span>)
-            </h3>
-            <div id="pluginDiv" class="ui mini text">Loading</div>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="threads-tab">
-            <h3 class="ui dividing header">
-                Threads Loaded (<span id="thread_count">{{ thread_count }}</span>)
-            </h3>
-            <div id="threadsDiv" class="ui mini text">Loading</div>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="config-tab">
-          <h3 class="ui dividing header">Config</h3>
-          <pre id="configjson" class="language-json">{{ config_json|safe }}</pre>
-        </div>
-
-        <div class="ui bottom attached tab segment" data-tab="log-tab">
-            <h3 class="ui dividing header">LOGFILE</h3>
-            <pre id="logContainer" style="height: 600px;overflow-y:auto;overflow-x:auto;"><code id="logtext" class="language-log" ></code></pre>
-        </div>
-
-        <!--
-        <div class="ui bottom attached tab segment" data-tab="oslo-tab">
-            <h3 class="ui dividing header">OSLO</h3>
-            <pre id="osloContainer" style="height:600px;overflow-y:auto;" class="language-json">{{ oslo_out|safe }}</pre>
-        </div> //-->
-
-        <div class="ui bottom attached tab segment" data-tab="raw-tab">
-          <h3 class="ui dividing header">Raw JSON</h3>
-          <pre id="jsonstats" class="language-yaml" style="height:600px;overflow-y:auto;">{{ initial_stats|safe }}</pre>
-        </div>
-
-        <div class="ui text container">
-            <a href="https://badge.fury.io/py/aprsd"><img src="https://img.shields.io/badge/aprsd-{{aprsd_version}}-darkgreen" alt="APRSD version" height="18"></a>
-            <a href="https://badge.fury.io/py/aprsd-admin-extension"><img src="https://img.shields.io/badge/aprsd_admin_extension-{{version}}-darkgreen" alt="APRSD version" height="18"></a>
-            <a href="https://github.com/craigerl/aprsd"><img src="https://img.shields.io/badge/Made%20with-Python-1f425f.svg" height="18"></a>
-        </div>
-    </body>
+        <footer class="admin-footer">
+            <div class="footer-badges">
+                <a href="https://badge.fury.io/py/aprsd" target="_blank" rel="noopener">
+                    <img src="https://img.shields.io/badge/aprsd-{{aprsd_version}}-darkgreen" alt="APRSD version" height="18">
+                </a>
+                <a href="https://badge.fury.io/py/aprsd-admin-extension" target="_blank" rel="noopener">
+                    <img src="https://img.shields.io/badge/aprsd_admin_extension-{{version}}-darkgreen" alt="APRSD Admin Extension version" height="18">
+                </a>
+                <a href="https://github.com/craigerl/aprsd" target="_blank" rel="noopener">
+                    <img src="https://img.shields.io/badge/Made%20with-Python-1f425f.svg" alt="Made with Python" height="18">
+                </a>
+            </div>
+        </footer>
+    </div>
+</body>
 </html>

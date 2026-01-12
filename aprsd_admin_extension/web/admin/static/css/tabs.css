@@ -1,35 +1,201 @@
-/* Style the tab */
+:root {
+    --primary-color: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-active: #eff6ff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --border-color: #e2e8f0;
+    --danger-color: #ef4444;
+    --radius-md: 0.5rem;
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 1rem;
+    --transition-base: 200ms ease-in-out;
+}
+
+/* Dark Theme Tabs */
+[data-theme="dark"] {
+    --primary-color: #3b82f6;
+    --primary-hover: #2563eb;
+    --bg-primary: #1e293b;
+    --bg-secondary: #0f172a;
+    --bg-active: #1e3a8a;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --danger-color: #f87171;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Modern Tab Styles */
+.modern-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+}
+
+.modern-tabs .nav-item {
+    list-style: none;
+    margin: 0;
+}
+
+.modern-tabs .nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    position: relative;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    user-select: none;
+}
+
+.modern-tabs .nav-link:hover {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+    transform: translateY(-2px);
+}
+
+.modern-tabs .nav-link.active {
+    background: var(--bg-primary);
+    color: var(--primary-color);
+    border-color: var(--border-color);
+    border-bottom-color: var(--bg-primary);
+    font-weight: 600;
+    z-index: 10;
+}
+
+.modern-tabs .nav-link.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--primary-color);
+}
+
+/* Tab Content */
+.tab-content {
+    background: var(--bg-primary);
+    border-radius: 0 var(--radius-md) var(--radius-md) var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+}
+
+.tab-pane {
+    display: none;
+    padding: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    flex-direction: column;
+    position: relative;
+}
+
+.tab-pane.active {
+    display: flex;
+}
+
+.tab-pane.fade {
+    opacity: 0;
+    transition: opacity 0.15s linear;
+}
+
+.tab-pane.fade.show {
+    opacity: 1;
+}
+
+/* Responsive Tabs */
+@media (max-width: 768px) {
+    .modern-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .modern-tabs::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .modern-tabs::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .modern-tabs::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 2px;
+    }
+
+    .modern-tabs .nav-link {
+        font-size: 0.8125rem;
+        padding: var(--spacing-xs) var(--spacing-sm);
+    }
+}
+
+/* Legacy Tab Styles (for compatibility) */
 .tab {
-  overflow: hidden;
-  border: 1px solid #ccc;
-  background-color: #f1f1f1;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    overflow: hidden;
 }
 
-/* Style the buttons that are used to open the tab content */
-.tab button {
-  background-color: inherit;
-  float: left;
-  border: none;
-  outline: none;
-  cursor: pointer;
-  padding: 14px 16px;
-  transition: 0.3s;
+.tab div {
+    display: block;
+    background-color: inherit;
+    color: var(--text-primary);
+    padding: var(--spacing-md);
+    width: 100%;
+    border: none;
+    outline: none;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--transition-base);
+    font-size: 0.9375rem;
 }
 
-/* Change background color of buttons on hover */
-.tab button:hover {
-  background-color: #ddd;
+.tab div:hover {
+    background-color: var(--bg-primary);
 }
 
-/* Create an active/current tablink class */
-.tab button.active {
-  background-color: #ccc;
+.tab div.active {
+    background-color: var(--bg-active);
+    color: var(--primary-color);
+    font-weight: 600;
 }
 
-/* Style the tab content */
 .tabcontent {
-  display: none;
-  padding: 6px 12px;
-  border: 1px solid #ccc;
-  border-top: none;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow-y: auto;
+    background-color: var(--bg-secondary);
+    padding: var(--spacing-md);
 }

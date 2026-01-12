@@ -54,14 +54,22 @@ function add_msg(msg) {
     reply_id = "reply_" + id
     span_id = "span_" + id
     json_pretty = Prism.highlight(JSON.stringify(msg, null, '\t'), Prism.languages.json, 'json');
-    msg_html = '<div class="ui title" id="' + title_id + '"><i class="dropdown icon"></i>';
-    msg_html += '<div class="ui active inline loader" id="' + loader_id  +'" data-content="Waiting for Ack"></div>&nbsp;';
-    msg_html += '<i class="thumbs down outline icon" id="' + ack_id + '" data-content="Waiting for ACK"></i>&nbsp;';
-    msg_html += '<i class="thumbs down outline icon" id="' + reply_id + '" data-content="Waiting for Reply"></i>&nbsp;';
-    msg_html += '<span id="' + span_id + '">' + from_to +'</span></div>';
-    msg_html += '<div class="content"><p class="transition hidden"><pre id="' + pretty_id + '" class="language-json">' + json_pretty + '</p></p></div>'
+    var unique_id = 'msg-accordion-' + id;
+    msg_html = '<div class="accordion-item">' +
+        '<div class="accordion-header" id="' + unique_id + '-header" onclick="toggleAccordion(\'' + unique_id + '\')">' +
+        '<span class="accordion-icon material-symbols-rounded">chevron_right</span>' +
+        '<div id="' + title_id + '">' +
+        '<span class="material-symbols-rounded" style="font-size: 1rem;">hourglass_empty</span>&nbsp;' +
+        '<span class="material-symbols-rounded" id="' + ack_id + '" style="font-size: 1rem;">thumb_down</span>&nbsp;' +
+        '<span class="material-symbols-rounded" id="' + reply_id + '" style="font-size: 1rem;">thumb_down</span>&nbsp;' +
+        '<span id="' + span_id + '">' + from_to +'</span>' +
+        '</div>' +
+        '</div>' +
+        '<div class="accordion-content" id="' + unique_id + '-content">' +
+        '<pre id="' + pretty_id + '" class="language-json">' + json_pretty + '</pre>' +
+        '</div>' +
+        '</div>';
     msgsdiv.prepend(msg_html);
-    $('.ui.accordion').accordion('refresh');
 }
 
 function update_msg(msg) {
@@ -80,17 +88,23 @@ function update_msg(msg) {
     if (msg['ack'] == true) {
         var loader_div = $('#' + loader_id);
         var ack_div = $('#' + ack_id);
-        loader_div.removeClass('ui active inline loader');
-        loader_div.addClass('ui disabled loader');
-        ack_div.removeClass('thumbs up outline icon');
-        ack_div.addClass('thumbs up outline icon');
+        if (loader_div.length) {
+            loader_div.remove();
+        }
+        if (ack_div.length) {
+            ack_div.removeClass('thumb_down');
+            ack_div.addClass('thumb_up');
+            ack_div.attr('title', 'ACK Received');
+        }
     }
 
     if (msg['reply'] !== null) {
         var reply_div = $('#' + reply_id);
-        reply_div.removeClass("thumbs down outline icon");
-        reply_div.addClass('reply icon');
-        reply_div.attr('data-content', 'Got Reply');
+        if (reply_div.length) {
+            reply_div.removeClass("thumb_down");
+            reply_div.addClass('reply');
+            reply_div.attr('title', 'Got Reply');
+        }
 
         var d = new Date(ts).toLocaleDateString("en-US")
         var t = new Date(ts).toLocaleTimeString("en-US")
@@ -107,8 +121,9 @@ function update_msg(msg) {
     }
 
     var pretty_pre = $("#" + pretty_id);
-    pretty_pre.html('');
-    json_pretty = Prism.highlight(JSON.stringify(msg, null, '\t'), Prism.languages.json, 'json');
-    pretty_pre.html(json_pretty);
-    $('.ui.accordion').accordion('refresh');
+    if (pretty_pre.length) {
+        pretty_pre.html('');
+        json_pretty = Prism.highlight(JSON.stringify(msg, null, '\t'), Prism.languages.json, 'json');
+        pretty_pre.html(json_pretty);
+    }
 }

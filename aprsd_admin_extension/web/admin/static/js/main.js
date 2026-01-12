@@ -22,6 +22,38 @@ function show_aprs_icon(item, symbol) {
 
 function ord(str){return str.charCodeAt(0);}
 
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+// Accordion toggle function
+function toggleAccordion(id) {
+    var content = document.getElementById(id + '-content');
+    var header = document.getElementById(id + '-header');
+    var icon = header.querySelector('.accordion-icon');
+
+    if (content.classList.contains('active')) {
+        content.classList.remove('active');
+        header.classList.remove('active');
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        content.classList.add('active');
+        header.classList.add('active');
+        icon.style.transform = 'rotate(90deg)';
+    }
+}
+
 
 function update_watchlist( data ) {
     // Update the watch list
@@ -30,10 +62,10 @@ function update_watchlist( data ) {
         return
     }
     var watchdiv = $("#watchDiv");
-    var html_str = '<table class="ui celled striped table"><thead><tr><th>HAM Callsign</th><th>Age since last seen by APRSD</th></tr></thead><tbody>'
+    var html_str = '<table class="table table-striped"><thead><tr><th>HAM Callsign</th><th>Age since last seen by APRSD</th></tr></thead><tbody>'
     watchdiv.html('')
     jQuery.each(stats["WatchList"], function(i, val) {
-        html_str += '<tr><td class="collapsing"><img id="callsign_'+i+'" class="aprsd_1"></img>' + i + '</td><td>' + val["last"] + '</td></tr>'
+        html_str += '<tr><td><img id="callsign_'+i+'" class="aprsd_1"></img>' + i + '</td><td>' + val["last"] + '</td></tr>'
     });
     html_str += "</tbody></table>";
     watchdiv.append(html_str);
@@ -69,7 +101,7 @@ function update_seenlist( data ) {
         return
     }
     var seendiv = $("#seenDiv");
-    var html_str = '<table class="ui celled striped table">'
+    var html_str = '<table class="table table-striped">'
     html_str    += '<thead><tr><th>HAM Callsign</th><th>Age since last seen by APRSD</th>'
     html_str    += '<th>Number of packets RX</th></tr></thead><tbody>'
     seendiv.html('')
@@ -77,7 +109,7 @@ function update_seenlist( data ) {
     var len = Object.keys(seen_list).length
     $('#seen_count').html(len)
     jQuery.each(seen_list, function(i, val) {
-        html_str += '<tr><td class="collapsing">'
+        html_str += '<tr><td>'
         html_str += '<img id="callsign_'+i+'" class="aprsd_1"></img>' + i + '</td>'
         html_str += '<td>' + val["last"] + '</td>'
         html_str += '<td>' + val["count"] + '</td></tr>'
@@ -92,7 +124,7 @@ function update_plugins( data ) {
         return
     }
     var plugindiv = $("#pluginDiv");
-    var html_str = '<table class="ui celled striped table"><thead><tr>'
+    var html_str = '<table class="table table-striped"><thead><tr>'
     html_str +=      '<th>Plugin Name</th><th>Plugin Enabled?</th>'
     html_str +=      '<th>Processed Packets</th><th>Sent Packets</th>'
     html_str +=      '<th>Version</th>'
@@ -105,7 +137,7 @@ function update_plugins( data ) {
     for (var i=0; i<keys.length; i++) { // now lets iterate in sort order
         var key = keys[i];
         var val = plugins[key];
-        html_str += '<tr><td class="collapsing">' + key + '</td>';
+        html_str += '<tr><td>' + key + '</td>';
         html_str += '<td>' + val["enabled"] + '</td><td>' + val["rx"] + '</td>';
         html_str += '<td>' + val["tx"] + '</td><td>' + val["version"] +'</td></tr>';
     }
@@ -120,7 +152,7 @@ function update_threads( data ) {
     }
     var threadsdiv = $("#threadsDiv");
     var countdiv = $("#thread_count");
-    var html_str = '<table class="ui celled striped table"><thead><tr>'
+    var html_str = '<table class="table table-striped"><thead><tr>'
     html_str +=      '<th>Thread Name</th><th>Alive?</th>'
     html_str +=      '<th>Age</th><th>Loop Count</th>'
     html_str +=    '</tr></thead><tbody>'
@@ -133,7 +165,7 @@ function update_threads( data ) {
     for (var i=0; i<keys.length; i++) { // now lets iterate in sort order
         var key = keys[i];
         var val = threads[key];
-        html_str += '<tr><td class="collapsing">' + key + '</td>';
+        html_str += '<tr><td>' + key + '</td>';
         html_str += '<td>' + val["alive"] + '</td><td>' + val["age"] + '</td>';
         html_str += '<td>' + val["loop_count"] + '</td></tr>';
     }
@@ -158,33 +190,62 @@ function update_packets( data ) {
             //ts_str = val["timestamp"].toString();
             //ts = ts_str.split(".")[0]*1000;
             ts = pkt['timestamp'] * 1000;
-            var d = new Date(ts).toLocaleDateString();
-            var t = new Date(ts).toLocaleTimeString();
-            var from_call = pkt.from_call;
-            if (from_call == our_callsign) {
+            var from_call = pkt.from_call || '';
+            var to_call = pkt.to_call || '';
+            var packet_type = pkt._type || 'Packet';
+            var msg_no = pkt.msgNo || '';
+            var is_tx = (from_call == our_callsign);
+
+            if (is_tx) {
                 title_id = 'title_tx';
             } else {
                 title_id = 'title_rx';
             }
-            var from_to = d + " " + t + "&nbsp;&nbsp;&nbsp;&nbsp;" + from_call + " > "
 
-            if (val.hasOwnProperty('addresse')) {
-                from_to += pkt['addresse']
-            } else if (pkt.hasOwnProperty('to_call')) {
-                from_to += pkt['to_call']
-            } else if (pkt.hasOwnProperty('format') && pkt['format'] == 'mic-e') {
-                from_to += "Mic-E"
+            // Format like log.py compact format: RX↓ PacketType:msgNo from_call → to_call : message
+            var compact_line = '';
+            if (is_tx) {
+                compact_line += '<span class="packet-tx">TX</span><span class="packet-arrow">↑</span> ';
+            } else {
+                compact_line += '<span class="packet-rx">RX</span><span class="packet-arrow">↓</span> ';
             }
 
-            from_to = from_to + "&nbsp;&nbsp;-&nbsp;&nbsp;" + pkt['raw']
+            compact_line += '<span class="packet-type">' + escapeHtml(packet_type) + '</span>';
+            if (msg_no) {
+                compact_line += ':<span class="packet-msgno">' + escapeHtml(String(msg_no)) + '</span>';
+            }
+
+            compact_line += ' <span class="packet-from">' + escapeHtml(from_call) + '</span> <span class="packet-arrow">→</span> ';
+
+            // Add path if available
+            if (pkt.path && Array.isArray(pkt.path) && pkt.path.length > 0) {
+                compact_line += '<span class="packet-path">' + escapeHtml(pkt.path.join('→')) + '</span><span class="packet-arrow">→</span> ';
+            }
+
+            compact_line += '<span class="packet-to">' + escapeHtml(to_call) + '</span>';
+
+            // Add message if available
+            if (pkt.human_info || pkt.message_text) {
+                var msg = pkt.human_info || pkt.message_text || '';
+                if (msg) {
+                    compact_line += ' : <span class="packet-message">' + escapeHtml(msg) + '</span>';
+                }
+            }
 
             json_pretty = Prism.highlight(JSON.stringify(pkt, null, '\t'), Prism.languages.json, 'json');
-            pkt_html = '<div class="title" id="' + title_id + '"><i class="dropdown icon"></i>' + from_to + '</div><div class="content"><p class="transition hidden"><pre class="language-json">' + json_pretty + '</p></p></div>'
+            var unique_id = 'accordion-' + pkt['timestamp'];
+            pkt_html = '<div class="accordion-item compact-accordion">' +
+                '<div class="accordion-header compact-header" id="' + unique_id + '-header" onclick="toggleAccordion(\'' + unique_id + '\')">' +
+                '<span class="accordion-icon material-symbols-rounded">chevron_right</span>' +
+                '<div class="packet-line" id="' + title_id + '">' + compact_line + '</div>' +
+                '</div>' +
+                '<div class="accordion-content" id="' + unique_id + '-content">' +
+                '<pre class="language-json">' + json_pretty + '</pre>' +
+                '</div>' +
+                '</div>';
             packetsdiv.prepend(pkt_html);
         }
     });
-
-    $('.ui.accordion').accordion('refresh');
 
     // Update the count of messages shown
     cnt = size_dict(packet_list);

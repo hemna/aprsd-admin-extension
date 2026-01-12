@@ -116,6 +116,17 @@ def index():
     else:
         thread_count = "unknown"
 
+    # Get seen list count
+    seen_list = stats["stats"].get("SeenList", {})
+    seen_count = len(seen_list) if seen_list else 0
+
+    # Get watch list count
+    watch_list = stats["stats"].get("WatchList", {})
+    watch_count = len(watch_list) if watch_list else 0
+
+    # Get watch age from config
+    watch_age = CONF.watch_list.alert_time_seconds if CONF.watch_list.enabled else 0
+
     return flask.render_template(
         "index.html",
         initial_stats=json.dumps(stats, cls=aprsd_json.SimpleJSONEncoder),
@@ -131,6 +142,9 @@ def index():
         ),
         plugin_count=plugin_count,
         thread_count=thread_count,
+        seen_count=seen_count,
+        watch_count=watch_count,
+        watch_age=watch_age,
         # oslo_out=generate_oslo()
     )
 
@@ -273,6 +287,8 @@ def init_app(config_file=None, log_level=None, socket_io=None, init_config=True)
     return log_level
 
 
+print(f"__name__: {__name__}")
+
 if __name__ == "__main__":
     async_mode = "threading"
     sio = socketio.Server(logger=True, async_mode=async_mode)
@@ -298,16 +314,20 @@ if __name__ == "uwsgi_file_aprsd_wsgi":
     app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
     log_level = init_app(
         # log_level="DEBUG",
-        config_file="/config/aprsd.conf",
+        # config_file="/config/aprsd.conf",
         # Commented out for local development.
-        # config_file=cli_helper.DEFAULT_CONFIG_FILE
+        config_file=cli_helper.DEFAULT_CONFIG_FILE
     )
     log.setup_logging(log_level)
     sio.register_namespace(LoggingNamespace("/logs"))
     CONF.log_opt_values(LOG, logging.DEBUG)
 
 
-if __name__ == "aprsd.wsgi" and not ADMIN_COMMAND:
+if (
+    __name__ == "aprsd.wsgi"
+    or __name__ == "aprsd_admin_extension.wsgi"
+    and not ADMIN_COMMAND
+):
     # set async_mode to 'threading', 'eventlet', 'gevent' or 'gevent_uwsgi' to
     # force a mode else, the best mode is selected automatically from what's
     # installed
@@ -316,9 +336,9 @@ if __name__ == "aprsd.wsgi" and not ADMIN_COMMAND:
     app.wsgi_app = socketio.WSGIApp(sio, app.wsgi_app)
 
     log_level = init_app(
-        # log_level="DEBUG",
-        config_file="/config/aprsd.conf",
-        # config_file=cli_helper.DEFAULT_CONFIG_FILE,
+        log_level="DEBUG",
+        # config_file="/config/aprsd.conf",
+        config_file=cli_helper.DEFAULT_CONFIG_FILE,
     )
     log.setup_logging(log_level)
     sio.register_namespace(LoggingNamespace("/logs"))
