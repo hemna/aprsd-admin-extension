@@ -206,7 +206,13 @@ def generate_oslo():
 @auth.login_required
 @app.route("/oslo")
 def oslo():
-    return generate_oslo()
+    entries = conf.conf_to_dict()
+    return json.dumps(
+        entries,
+        indent=4,
+        sort_keys=True,
+        default=str,
+    )
 
 
 @auth.login_required

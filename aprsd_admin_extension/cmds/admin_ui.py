@@ -31,6 +31,11 @@ from textual.widgets import (
 )
 
 from aprsd_admin_extension import cmds
+from aprsd_admin_extension.cmds.ui_common import (
+    ErrorDialog,
+    fetch_config_from_url,
+    fetch_stats_from_url,
+)
 from aprsd_admin_extension.threads import log_monitor
 
 CONF = cfg.CONF
@@ -40,9 +45,10 @@ LOG = logging.getLogger("APRSD")
 class StatsTab(ScrollableContainer):
     """Stats tab showing APRSD statistics."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.stats_store = stats_threads.StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
 
     def compose(self) -> ComposeResult:
         yield Static(id="stats_content")
@@ -53,12 +59,25 @@ class StatsTab(ScrollableContainer):
 
     def refresh_stats(self) -> None:
         try:
-            self.stats_store.load()
-            stats = self.stats_store.data
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
             content = self._format_stats(stats)
             self.query_one("#stats_content", Static).update(content)
         except Exception as e:
             LOG.error(f"Error refreshing stats: {e}")
+            # Show error in the stats tab
+            error_msg = Panel(
+                Text(
+                    f"Error fetching stats from URL:\n\n{self.aprsd_url}\n\n{str(e)}",
+                    style="bold red",
+                ),
+                title="[bold red]Connection Error[/bold red]",
+                border_style="red",
+            )
+            self.query_one("#stats_content", Static).update(error_msg)
 
     def _format_stats(self, stats: dict) -> RenderableType:
         """Format stats as a rich renderable with enhanced colorization and panels."""
@@ -198,6 +217,10 @@ class StatsTab(ScrollableContainer):
 class ConfigTab(ScrollableContainer):
     """Configuration tab showing APRSD configuration."""
 
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.aprsd_url = aprsd_url
+
     def compose(self) -> ComposeResult:
         yield Static(id="config_content")
 
@@ -228,51 +251,70 @@ class ConfigTab(ScrollableContainer):
 
     def refresh_config(self) -> None:
         try:
-            # Use same approach as wsgi.py generate_oslo()
-            # Save and restore CONF.namespace to avoid conflicts
-            original_namespace = getattr(CONF, "namespace", None)
-            try:
-                config_content = self._generate_oslo()
-            finally:
-                # Restore original namespace if it existed
-                if original_namespace is not None:
-                    CONF.namespace = original_namespace
-                elif hasattr(CONF, "namespace"):
-                    # Try to clear it if it was set by _generate_oslo
-                    try:
-                        delattr(CONF, "namespace")
-                    except (AttributeError, TypeError):
-                        pass
+            if self.aprsd_url:
+                # Fetch config from remote URL
+                config_content = fetch_config_from_url(self.aprsd_url)
+            else:
+                # Use same approach as wsgi.py generate_oslo()
+                # Save and restore CONF.namespace to avoid conflicts
+                original_namespace = getattr(CONF, "namespace", None)
+                try:
+                    config_content = self._generate_oslo()
+                finally:
+                    # Restore original namespace if it existed
+                    if original_namespace is not None:
+                        CONF.namespace = original_namespace
+                    elif hasattr(CONF, "namespace"):
+                        # Try to clear it if it was set by _generate_oslo
+                        try:
+                            delattr(CONF, "namespace")
+                        except (AttributeError, TypeError):
+                            pass
 
             # Display as config file format (same as generate_oslo produces)
             syntax = Syntax(config_content, "ini", theme="monokai", line_numbers=True)
             self.query_one("#config_content", Static).update(syntax)
         except Exception as e:
             LOG.error(f"Error refreshing config: {e}", exc_info=True)
-            # Fallback to JSON format if generator fails
-            try:
-                entries = conf.conf_to_dict()
-                config_json = json.dumps(
-                    entries,
-                    indent=4,
-                    sort_keys=True,
-                    default=str,
+            # Fallback to JSON format if generator fails (only for local config)
+            if not self.aprsd_url:
+                try:
+                    entries = conf.conf_to_dict()
+                    config_json = json.dumps(
+                        entries,
+                        indent=4,
+                        sort_keys=True,
+                        default=str,
+                    )
+                    syntax = Syntax(
+                        config_json, "json", theme="monokai", line_numbers=True
+                    )
+                    self.query_one("#config_content", Static).update(syntax)
+                except Exception as e2:
+                    LOG.error(f"Error in fallback config display: {e2}", exc_info=True)
+                    self.query_one("#config_content", Static).update(
+                        f"Error loading config: {e}\nFallback also failed: {e2}"
+                    )
+            else:
+                # For remote URL, show error message
+                error_msg = Panel(
+                    Text(
+                        f"Error fetching config from URL:\n\n{self.aprsd_url}\n\n{str(e)}",
+                        style="bold red",
+                    ),
+                    title="[bold red]Connection Error[/bold red]",
+                    border_style="red",
                 )
-                syntax = Syntax(config_json, "json", theme="monokai", line_numbers=True)
-                self.query_one("#config_content", Static).update(syntax)
-            except Exception as e2:
-                LOG.error(f"Error in fallback config display: {e2}", exc_info=True)
-                self.query_one("#config_content", Static).update(
-                    f"Error loading config: {e}\nFallback also failed: {e2}"
-                )
+                self.query_one("#config_content", Static).update(error_msg)
 
 
 class PluginsTab(ScrollableContainer):
     """Plugins tab showing plugin information."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.stats_store = stats_threads.StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
 
     def compose(self) -> ComposeResult:
         yield Static(id="plugins_content")
@@ -283,8 +325,11 @@ class PluginsTab(ScrollableContainer):
 
     def refresh_plugins(self) -> None:
         try:
-            self.stats_store.load()
-            stats = self.stats_store.data
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
             content = self._format_plugins(stats)
             self.query_one("#plugins_content", Static).update(content)
         except Exception as e:
@@ -345,9 +390,10 @@ class PluginsTab(ScrollableContainer):
 class MessagesTab(Container):
     """Messages tab showing packet tracking from StatsStore."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.stats_store = stats_threads.StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
 
     def compose(self) -> ComposeResult:
         yield DataTable(id="messages_table", zebra_stripes=True)
@@ -431,9 +477,12 @@ class MessagesTab(Container):
         try:
             table = self.query_one("#messages_table", DataTable)
 
-            # Load stats from disk (written by the running aprsd process)
-            self.stats_store.load()
-            stats = self.stats_store.data
+            # Load stats from disk (written by the running aprsd process) or URL
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
 
             # Get PacketList which contains the actual packet objects
             packet_list_stats = stats.get("PacketList", {})
@@ -528,9 +577,10 @@ class MessagesTab(Container):
 class SeenListTab(ScrollableContainer):
     """Seen List tab showing callsigns that have been seen."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.stats_store = stats_threads.StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
 
     def compose(self) -> ComposeResult:
         yield Static(id="seenlist_content")
@@ -541,8 +591,11 @@ class SeenListTab(ScrollableContainer):
 
     def refresh_seenlist(self) -> None:
         try:
-            self.stats_store.load()
-            stats = self.stats_store.data
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
             content = self._format_seenlist(stats)
             self.query_one("#seenlist_content", Static).update(content)
         except Exception as e:
@@ -612,9 +665,10 @@ class SeenListTab(ScrollableContainer):
 class WatchListTab(ScrollableContainer):
     """Watch List tab showing callsigns being watched."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.stats_store = stats_threads.StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
 
     def compose(self) -> ComposeResult:
         yield Static(id="watchlist_content")
@@ -625,8 +679,11 @@ class WatchListTab(ScrollableContainer):
 
     def refresh_watchlist(self) -> None:
         try:
-            self.stats_store.load()
-            stats = self.stats_store.data
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
             content = self._format_watchlist(stats)
             self.query_one("#watchlist_content", Static).update(content)
         except Exception as e:
@@ -715,9 +772,11 @@ class APRSDAdminApp(App):
         ("r", "refresh", "Refresh"),
     ]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.server_threads = None
+        self.aprsd_url = aprsd_url
+        self.url_error_shown = False
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -727,16 +786,40 @@ class APRSDAdminApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
+        # Test URL connection if provided
+        if self.aprsd_url:
+            try:
+                fetch_stats_from_url(self.aprsd_url)
+            except Exception as e:
+                self._show_url_error(str(e))
+                return
+
         # Add all tabs in the specified order
         tabbed_content = self.query_one("#main_tabs", TabbedContent)
-        tabbed_content.add_pane(TabPane("Stats", StatsTab(), id="stats_tab"))
-        tabbed_content.add_pane(TabPane("Messages", MessagesTab(), id="messages_tab"))
-        tabbed_content.add_pane(TabPane("Seen List", SeenListTab(), id="seenlist_tab"))
         tabbed_content.add_pane(
-            TabPane("Watch List", WatchListTab(), id="watchlist_tab")
+            TabPane("Stats", StatsTab(aprsd_url=self.aprsd_url), id="stats_tab")
         )
-        tabbed_content.add_pane(TabPane("Plugins", PluginsTab(), id="plugins_tab"))
-        tabbed_content.add_pane(TabPane("Config", ConfigTab(), id="config_tab"))
+        tabbed_content.add_pane(
+            TabPane(
+                "Messages", MessagesTab(aprsd_url=self.aprsd_url), id="messages_tab"
+            )
+        )
+        tabbed_content.add_pane(
+            TabPane(
+                "Seen List", SeenListTab(aprsd_url=self.aprsd_url), id="seenlist_tab"
+            )
+        )
+        tabbed_content.add_pane(
+            TabPane(
+                "Watch List", WatchListTab(aprsd_url=self.aprsd_url), id="watchlist_tab"
+            )
+        )
+        tabbed_content.add_pane(
+            TabPane("Plugins", PluginsTab(aprsd_url=self.aprsd_url), id="plugins_tab")
+        )
+        tabbed_content.add_pane(
+            TabPane("Config", ConfigTab(aprsd_url=self.aprsd_url), id="config_tab")
+        )
         tabbed_content.active = "stats_tab"
 
         # Start log monitor thread if web is enabled
@@ -744,6 +827,23 @@ class APRSDAdminApp(App):
             LOG.info("Starting LogMonitorThread")
             self.server_threads = service.ServiceThreads()
             self.server_threads.register(log_monitor.LogMonitorThread())
+
+    def _show_url_error(self, error_message: str) -> None:
+        """Show error dialog for URL fetch failure."""
+        if self.url_error_shown:
+            return
+        self.url_error_shown = True
+
+        # Create error message
+        message = f"Failed to fetch stats from URL:\n\n{self.aprsd_url}\n\nError: {error_message}\n\nPlease check the URL and try again."
+        dialog = ErrorDialog(message, title="URL Connection Error")
+
+        # Mount as a screen overlay
+        from textual.screen import Screen
+
+        error_screen = Screen()
+        error_screen.mount(dialog)
+        self.push_screen(error_screen)
 
     def action_refresh(self) -> None:
         """Action to refresh all tabs."""
@@ -759,11 +859,19 @@ class APRSDAdminApp(App):
 
 @cmds.admin.command()
 @cli_helper.add_options(cli_helper.common_options)
+@click.option(
+    "--url",
+    "aprsd_url",
+    default=None,
+    help="URL to fetch stats and config from (e.g., http://localhost:8080). If not provided, stats are loaded from local StatsStore.",
+)
 @click.pass_context
 @cli_helper.process_standard_options
-def admin_ui(ctx):
+def admin_ui(ctx, aprsd_url):
     """Display APRSD admin interface in a terminal UI."""
     LOG.info(f"APRSD Admin UI started version: {aprsd.__version__}")
+    if aprsd_url:
+        LOG.info(f"Fetching stats and config from remote URL: {aprsd_url}")
 
-    app = APRSDAdminApp()
+    app = APRSDAdminApp(aprsd_url=aprsd_url)
     app.run()

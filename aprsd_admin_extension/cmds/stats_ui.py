@@ -15,6 +15,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Footer, Header, Static
 
 from aprsd_admin_extension import cmds
+from aprsd_admin_extension.cmds.ui_common import ErrorDialog, fetch_stats_from_url
 
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
@@ -477,11 +478,15 @@ class APRSDStatsApp(App):
         ("r", "refresh", "Refresh"),
     ]
 
-    def __init__(self, refresh_interval: float = 5.0, *args, **kwargs):
+    def __init__(
+        self, refresh_interval: float = 5.0, aprsd_url: str = None, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
-        self.stats_store = StatsStore()
+        self.aprsd_url = aprsd_url
+        self.stats_store = StatsStore() if not aprsd_url else None
         self.stats_data = {}
         self.refresh_interval = refresh_interval
+        self.url_error_shown = False
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -501,14 +506,42 @@ class APRSDStatsApp(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
+        # Test URL connection if provided
+        if self.aprsd_url:
+            try:
+                fetch_stats_from_url(self.aprsd_url)
+            except Exception as e:
+                self._show_url_error(str(e))
+                return
+
         self.refresh_stats()
         self.set_interval(self.refresh_interval, self.refresh_stats)
 
+    def _show_url_error(self, error_message: str) -> None:
+        """Show error dialog for URL fetch failure."""
+        if self.url_error_shown:
+            return
+        self.url_error_shown = True
+
+        # Create error message
+        message = f"Failed to fetch stats from URL:\n\n{self.aprsd_url}\n\nError: {error_message}\n\nPlease check the URL and try again."
+        dialog = ErrorDialog(message, title="URL Connection Error")
+
+        # Mount as a screen overlay
+        from textual.screen import Screen
+
+        error_screen = Screen()
+        error_screen.mount(dialog)
+        self.push_screen(error_screen)
+
     def refresh_stats(self) -> None:
-        """Refresh stats from the stats store."""
+        """Refresh stats from the stats store or URL."""
         try:
-            self.stats_store.load()
-            self.stats_data = self.stats_store.data
+            if self.aprsd_url:
+                self.stats_data = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                self.stats_data = self.stats_store.data
 
             # Update all panels
             self.query_one("#aprsd_stats", StatsPanel).update_stats(
@@ -521,6 +554,9 @@ class APRSDStatsApp(App):
             self.query_one("#watch_list", WatchListPanel).update_stats(self.stats_data)
         except Exception as e:
             LOG.error(f"Error refreshing stats: {e}")
+            # Show error dialog if URL fetch fails
+            if self.aprsd_url and not self.url_error_shown:
+                self._show_url_error(str(e))
 
     def action_refresh(self) -> None:
         """Action to refresh stats manually."""
@@ -539,12 +575,20 @@ class APRSDStatsApp(App):
     default=5.0,
     help="Refresh interval in seconds (default: 5.0)",
 )
+@click.option(
+    "--url",
+    "aprsd_url",
+    default=None,
+    help="URL to fetch stats from (e.g., http://localhost:8080). If not provided, stats are loaded from local StatsStore.",
+)
 @click.pass_context
 @cli_helper.process_standard_options
-def stats_ui(ctx, refresh_interval):
+def stats_ui(ctx, refresh_interval, aprsd_url):
     """Display APRSD stats in a terminal UI."""
     LOG.info(f"APRSD Stats UI started version: {aprsd.__version__}")
     LOG.info(f"Refresh interval: {refresh_interval} seconds")
+    if aprsd_url:
+        LOG.info(f"Fetching stats from remote URL: {aprsd_url}")
 
-    app = APRSDStatsApp(refresh_interval=refresh_interval)
+    app = APRSDStatsApp(refresh_interval=refresh_interval, aprsd_url=aprsd_url)
     app.run()
