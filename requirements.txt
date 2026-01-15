@@ -5,6 +5,5 @@ Flask-HTTPAuth
 oslo_config
 python-socketio
 textual
-textual-plotext
 rich
 werkzeug
