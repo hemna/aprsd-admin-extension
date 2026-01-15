@@ -808,10 +808,24 @@ class MessagesTab(Container):
 
         # Add message if available (not for Ack or Reject packets)
         if not isinstance(pkt, AckPacket) and not isinstance(pkt, RejectPacket):
-            human_info = getattr(pkt, "human_info", None)
+            # Try to get human_info - it might be a property or attribute
+            human_info = None
+            try:
+                # Try accessing human_info directly (works for both properties and attributes)
+                human_info = pkt.human_info
+            except (AttributeError, TypeError):
+                # If that fails, try message_text directly
+                try:
+                    message_text = getattr(pkt, "message_text", None)
+                    if message_text:
+                        # Simple filtering: limit length and strip newlines
+                        human_info = message_text[:67].rstrip("\n")
+                except Exception:
+                    pass
+
             if human_info:
                 text.append(" : ", style="default")
-                text.append(human_info, style=f"bold {MESSAGE_COLOR}")
+                text.append(str(human_info), style=f"bold {MESSAGE_COLOR}")
 
         return text
 
@@ -861,6 +875,56 @@ class MessagesTab(Container):
                                 self._type = data.get(
                                     "_type", data.get("format", "Packet")
                                 )
+                                # Store original data for human_info property
+                                self._data = data
+
+                            @property
+                            def human_info(self):
+                                """Get human-readable message info, handling both dict and object cases."""
+                                # If human_info is already in the dict, use it
+                                if "human_info" in self._data:
+                                    return self._data["human_info"]
+                                # Otherwise, try to build it from message_text (for MessagePacket)
+                                message_text = self._data.get("message_text")
+                                if message_text:
+                                    # Filter for send (remove control characters and limit length) like MessagePacket does
+                                    # _filter_for_send limits to 67 chars and removes control chars
+                                    filtered = message_text[:67] if message_text else ""
+                                    # Remove common control characters (simplified version of _filter_for_send)
+                                    for char in [
+                                        "\x00",
+                                        "\x01",
+                                        "\x02",
+                                        "\x03",
+                                        "\x04",
+                                        "\x05",
+                                        "\x06",
+                                        "\x07",
+                                        "\x08",
+                                        "\x0b",
+                                        "\x0c",
+                                        "\x0e",
+                                        "\x0f",
+                                        "\x10",
+                                        "\x11",
+                                        "\x12",
+                                        "\x13",
+                                        "\x14",
+                                        "\x15",
+                                        "\x16",
+                                        "\x17",
+                                        "\x18",
+                                        "\x19",
+                                        "\x1a",
+                                        "\x1b",
+                                        "\x1c",
+                                        "\x1d",
+                                        "\x1e",
+                                        "\x1f",
+                                    ]:
+                                        filtered = filtered.replace(char, "")
+                                    return filtered.rstrip("\n")
+                                return None
 
                         pkt = PacketObj(pkt_data)
                         pkt.__class__.__name__ = pkt._type
