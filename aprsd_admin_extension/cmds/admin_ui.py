@@ -8,13 +8,21 @@ from datetime import datetime
 
 import aprsd
 import click
+
+try:
+    from textual_plotext import PlotextPlot
+
+    PLOTEXT_AVAILABLE = True
+except ImportError:
+    PLOTEXT_AVAILABLE = False
+    PlotextPlot = None
 from aprsd import cli_helper, client, conf
 from aprsd import threads as aprsd_threads
 from aprsd.packets.core import AckPacket, RejectPacket
 from aprsd.threads import service
 from aprsd.threads import stats as stats_threads
 from oslo_config import cfg, generator
-from rich.console import Group, RenderableType
+from rich.console import RenderableType
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
@@ -42,20 +50,239 @@ from aprsd_admin_extension.threads import log_monitor
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
 
+# Chart classes - only define if plotext is available
+if PLOTEXT_AVAILABLE:
+
+    class PacketsChart(PlotextPlot):
+        """Chart for displaying APRS packet totals (TX/RX)."""
+
+        def on_mount(self) -> None:
+            """Initialize the plot."""
+            self.plt.xlabel("Time")
+            self.plt.ylabel("Count")
+
+        def update(self, tx_data: list, rx_data: list) -> None:
+            """Update the plot with new data."""
+            self.plt.clear_data()
+            if len(tx_data) > 1:
+                x = list(range(len(tx_data)))
+                self.plt.plot(x, tx_data, label="TX", color="red")
+                self.plt.plot(x, rx_data, label="RX", color="green")
+            elif len(tx_data) == 1:
+                # Need at least 2 points for line plot
+                x = [0, 1]
+                self.plt.plot(x, [tx_data[0], tx_data[0]], label="TX", color="red")
+                self.plt.plot(x, [rx_data[0], rx_data[0]], label="RX", color="green")
+            # Set Y-axis to show only whole numbers
+            max_val = max(
+                max(tx_data) if tx_data else 0, max(rx_data) if rx_data else 0
+            )
+            if max_val > 0:
+                # Create integer tick marks
+                num_ticks = 5
+                tick_step = max(1, int(max_val / num_ticks))
+                y_ticks = list(range(0, int(max_val) + tick_step + 1, tick_step))
+                self.plt.yticks(y_ticks, [str(int(y)) for y in y_ticks])
+            widget_size = self.size
+            if widget_size.width > 0 and widget_size.height > 0:
+                # Use a fixed smaller height instead of widget size
+                # Original would be ~15-20, reduced to ~7-10 (49% of original)
+                height = max(7, int((widget_size.height - 4) * 0.49))
+                self.plt.plotsize(widget_size.width - 4, height)
+            else:
+                self.plt.plotsize(80, 7)  # Reduced fallback height
+            self.refresh()
+
+    class ThreadsChart(PlotextPlot):
+        """Chart for displaying active thread count."""
+
+        def on_mount(self) -> None:
+            """Initialize the plot."""
+            self.plt.xlabel("Time")
+            self.plt.ylabel("Count")
+
+        def update(self, count_data: list) -> None:
+            """Update the plot with new data."""
+            self.plt.clear_data()
+            if len(count_data) > 1:
+                x = list(range(len(count_data)))
+                self.plt.plot(x, count_data, label="Threads", color="blue")
+            elif len(count_data) == 1:
+                x = [0, 1]
+                self.plt.plot(
+                    x, [count_data[0], count_data[0]], label="Threads", color="blue"
+                )
+            widget_size = self.size
+            if widget_size.width > 0 and widget_size.height > 0:
+                # Use a fixed smaller height instead of widget size
+                # Original would be ~15-20, reduced to ~7-10 (49% of original)
+                height = max(7, int((widget_size.height - 4) * 0.49))
+                self.plt.plotsize(widget_size.width - 4, height)
+            else:
+                self.plt.plotsize(80, 7)  # Reduced fallback height
+            self.refresh()
+
+    class MemoryChart(PlotextPlot):
+        """Chart for displaying memory usage."""
+
+        def on_mount(self) -> None:
+            """Initialize the plot."""
+            self.plt.xlabel("Time")
+            self.plt.ylabel("MB")
+
+        def update(self, current_data: list, peak_data: list) -> None:
+            """Update the plot with new data."""
+            self.plt.clear_data()
+            if len(current_data) > 1:
+                x = list(range(len(current_data)))
+                self.plt.plot(x, current_data, label="Current", color="blue")
+                self.plt.plot(x, peak_data, label="Peak", color="red")
+            elif len(current_data) == 1:
+                x = [0, 1]
+                self.plt.plot(
+                    x, [current_data[0], current_data[0]], label="Current", color="blue"
+                )
+                self.plt.plot(
+                    x, [peak_data[0], peak_data[0]], label="Peak", color="red"
+                )
+            widget_size = self.size
+            if widget_size.width > 0 and widget_size.height > 0:
+                # Use a fixed smaller height instead of widget size
+                # Original would be ~15-20, reduced to ~7-10 (49% of original)
+                height = max(7, int((widget_size.height - 4) * 0.49))
+                self.plt.plotsize(widget_size.width - 4, height)
+            else:
+                self.plt.plotsize(80, 7)  # Reduced fallback height
+            self.refresh()
+
+    class PacketTypesChart(PlotextPlot):
+        """Chart for displaying packet types as a bar chart."""
+
+        def on_mount(self) -> None:
+            """Initialize the plot."""
+            self.plt.xlabel("Packet Type")
+            self.plt.ylabel("Count")
+
+        def update(self, types: list, rx_values: list, tx_values: list) -> None:
+            """Update the plot with new data."""
+            self.plt.clear_data()
+            if (
+                types
+                and len(types) > 0
+                and len(rx_values) == len(types)
+                and len(tx_values) == len(types)
+            ):
+                # Create x positions for each packet type group
+                # Each group will have 2 bars (RX and TX) side by side
+                bar_width = 0.35  # Width of each bar
+                x_base = list(range(len(types)))  # Base positions for each packet type
+                x_rx = [x - bar_width / 2 for x in x_base]  # RX bars offset left
+                x_tx = [x + bar_width / 2 for x in x_base]  # TX bars offset right
+
+                # Plot RX bars in green
+                self.plt.bar(
+                    x_rx, rx_values, width=bar_width, label="RX", color="green"
+                )
+                # Plot TX bars in red
+                self.plt.bar(x_tx, tx_values, width=bar_width, label="TX", color="red")
+                # Set x-axis labels at the center of each group
+                self.plt.xticks(x_base, types)
+                # Set Y-axis to show only whole numbers
+                max_val = max(
+                    max(rx_values) if rx_values else 0,
+                    max(tx_values) if tx_values else 0,
+                )
+                if max_val > 0:
+                    # Create integer tick marks
+                    num_ticks = 5
+                    tick_step = max(1, int(max_val / num_ticks))
+                    y_ticks = list(range(0, int(max_val) + tick_step + 1, tick_step))
+                    self.plt.yticks(y_ticks, [str(int(y)) for y in y_ticks])
+                widget_size = self.size
+                if widget_size.width > 0 and widget_size.height > 0:
+                    # Use a fixed smaller height instead of widget size
+                    # Original would be ~20, reduced to ~10 (49% of original)
+                    height = max(10, int((widget_size.height - 4) * 0.49))
+                    self.plt.plotsize(widget_size.width - 4, height)
+                else:
+                    self.plt.plotsize(100, 10)  # Reduced fallback height
+            # Always refresh, even if no data
+            self.refresh()
+
+else:
+    # Dummy classes when plotext is not available
+    PacketsChart = None
+    ThreadsChart = None
+    MemoryChart = None
+    PacketTypesChart = None
+
 
 class StatsTab(ScrollableContainer):
     """Stats tab showing APRSD statistics."""
+
+    DEFAULT_CSS = """
+    .chart_container {
+        border: solid $primary;
+        padding: 1;
+        margin: 1;
+        height: auto;
+    }
+    .chart_title {
+        text-align: center;
+        margin-bottom: 1;
+    }
+    PlotextPlot {
+        height: auto;
+        min-height: 7;
+        max-height: 20;
+    }
+    """
 
     def __init__(self, aprsd_url: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.aprsd_url = aprsd_url
         self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
+        # Track historical data for time-series charts
+        self.history = {
+            "packets": {"tx": [], "rx": [], "time": []},
+            "threads": {"count": [], "time": []},
+            "memory": {"current": [], "peak": [], "time": []},
+        }
+        self.max_history = 50  # Keep last 50 data points
 
     def compose(self) -> ComposeResult:
-        yield Static(id="stats_content")
+        if PLOTEXT_AVAILABLE:
+            yield Container(
+                Static(
+                    "[bold cyan]APRS Packet Totals[/bold cyan]", classes="chart_title"
+                ),
+                PacketsChart(id="packets_chart"),
+                classes="chart_container",
+            )
+            yield Container(
+                Static(
+                    "[bold bright_cyan]Packet Types[/bold bright_cyan]",
+                    classes="chart_title",
+                ),
+                PacketTypesChart(id="packet_types_chart"),
+                classes="chart_container",
+            )
+            yield Container(
+                Static("[bold blue]Active Threads[/bold blue]", classes="chart_title"),
+                ThreadsChart(id="threads_chart"),
+                classes="chart_container",
+            )
+            yield Container(
+                Static(
+                    "[bold magenta]Memory Usage[/bold magenta]", classes="chart_title"
+                ),
+                MemoryChart(id="memory_chart"),
+                classes="chart_container",
+            )
 
     def on_mount(self) -> None:
-        self.refresh_stats()
+        # Initial refresh after a short delay to ensure widgets are mounted
+        self.set_timer(0.1, self.refresh_stats)
         self.set_interval(5.0, self.refresh_stats)
 
     def refresh_stats(self) -> None:
@@ -65,8 +292,12 @@ class StatsTab(ScrollableContainer):
             else:
                 self.stats_store.load()
                 stats = self.stats_store.data
-            content = self._format_stats(stats)
-            self.query_one("#stats_content", Static).update(content)
+            # Update history for time-series charts
+            self._update_history(stats)
+            # Update charts if available
+            if PLOTEXT_AVAILABLE:
+                self._update_charts(stats)
+            # No longer need to update stats_content since we removed the text blocks
         except Exception as e:
             LOG.error(f"Error refreshing stats: {e}")
             # Show error in the stats tab
@@ -80,75 +311,173 @@ class StatsTab(ScrollableContainer):
             )
             self.query_one("#stats_content", Static).update(error_msg)
 
-    def _format_stats(self, stats: dict) -> RenderableType:
-        """Format stats as a rich renderable with enhanced colorization and panels."""
-        output = []
+    def _update_charts(self, stats: dict) -> None:
+        """Update all chart widgets with current data."""
+        if not PLOTEXT_AVAILABLE:
+            return
 
-        # APRSD Stats
-        aprsd_stats = stats.get("APRSDStats", {})
-        if aprsd_stats:
-            table = Table(show_header=True, box=None)
-            table.add_column("Key", style="bold cyan", header_style="bold cyan")
-            table.add_column("Value", style="bold green", header_style="bold green")
-            for key, value in sorted(aprsd_stats.items()):
-                table.add_row(
-                    Text(str(key), style="cyan"), Text(str(value), style="green")
-                )
-            panel = Panel(
-                table,
-                title="[bold cyan]APRSD Stats[/bold cyan]",
-                border_style="cyan",
-                padding=(1, 2),
-            )
-            output.append(panel)
+        try:
+            # Packets chart
+            if len(self.history["packets"]["time"]) >= 1:
+                try:
+                    chart = self.query_one("#packets_chart", PacketsChart)
+                    chart.update(
+                        self.history["packets"]["tx"],
+                        self.history["packets"]["rx"],
+                    )
+                except Exception as e:
+                    LOG.error(f"Error updating packets chart: {e}", exc_info=True)
 
-        # Packet List
+            # Threads chart
+            if len(self.history["threads"]["time"]) >= 1:
+                try:
+                    chart = self.query_one("#threads_chart", ThreadsChart)
+                    chart.update(self.history["threads"]["count"])
+                except Exception as e:
+                    LOG.error(f"Error updating threads chart: {e}", exc_info=True)
+
+            # Memory chart
+            try:
+                chart = self.query_one("#memory_chart", MemoryChart)
+                if len(self.history["memory"]["time"]) >= 1:
+                    chart.update(
+                        self.history["memory"]["current"],
+                        self.history["memory"]["peak"],
+                    )
+            except Exception as e:
+                LOG.error(f"Error updating memory chart: {e}", exc_info=True)
+
+            # Packet types chart
+            try:
+                chart = self.query_one("#packet_types_chart", PacketTypesChart)
+                packet_list = stats.get("PacketList", {})
+                types = []
+                rx_values = []
+                tx_values = []
+
+                if packet_list:
+                    # Try "types" first (used by web version), fall back to "packets"
+                    packet_types = packet_list.get(
+                        "types", packet_list.get("packets", {})
+                    )
+                    if isinstance(packet_types, dict) and packet_types:
+                        for packet_type, data in sorted(packet_types.items()):
+                            if isinstance(data, dict):
+                                rx = data.get("rx", 0)
+                                tx = data.get("tx", 0)
+                                # Only include packet types with non-zero counts
+                                if rx > 0 or tx > 0:
+                                    types.append(packet_type[:15])
+                                    rx_values.append(rx)
+                                    tx_values.append(tx)
+
+                # Always update the chart
+                chart.update(types, rx_values, tx_values)
+            except Exception as e:
+                LOG.error(f"Error updating packet types chart: {e}", exc_info=True)
+        except Exception as e:
+            LOG.debug(f"Error updating charts: {e}")
+
+    def _update_history(self, stats: dict) -> None:
+        """Update historical data for time-series charts."""
+        from datetime import datetime
+
+        now = datetime.now()
+        time_str = now.strftime("%H:%M:%S")
+
+        # Packets
         packet_list = stats.get("PacketList", {})
         if packet_list:
-            table = Table(show_header=True, box=None)
-            table.add_column("Type", style="bold cyan", header_style="bold cyan")
-            table.add_column("RX", style="bold green", header_style="bold green")
-            table.add_column("TX", style="bold yellow", header_style="bold yellow")
+            tx = packet_list.get("tx", 0)
+            rx = packet_list.get("rx", 0)
+            self.history["packets"]["tx"].append(tx)
+            self.history["packets"]["rx"].append(rx)
+            self.history["packets"]["time"].append(time_str)
+            if len(self.history["packets"]["time"]) > self.max_history:
+                self.history["packets"]["tx"].pop(0)
+                self.history["packets"]["rx"].pop(0)
+                self.history["packets"]["time"].pop(0)
 
-            # Total row with special styling
-            total_rx = packet_list.get("rx", 0)
-            total_tx = packet_list.get("tx", 0)
-            table.add_row(
-                Text("Total", style="bold white"),
-                Text(str(total_rx), style="bold green"),
-                Text(str(total_tx), style="bold yellow"),
-            )
+        # Threads
+        thread_list = stats.get("APRSDThreadList", {})
+        if thread_list:
+            thread_count = len(thread_list) if isinstance(thread_list, dict) else 0
+            self.history["threads"]["count"].append(thread_count)
+            self.history["threads"]["time"].append(time_str)
+            if len(self.history["threads"]["time"]) > self.max_history:
+                self.history["threads"]["count"].pop(0)
+                self.history["threads"]["time"].pop(0)
+        else:
+            # If no thread list, append 0
+            self.history["threads"]["count"].append(0)
+            self.history["threads"]["time"].append(time_str)
+            if len(self.history["threads"]["time"]) > self.max_history:
+                self.history["threads"]["count"].pop(0)
+                self.history["threads"]["time"].pop(0)
 
-            packets = packet_list.get("packets", {})
-            if isinstance(packets, dict):
-                for packet_type, data in sorted(packets.items()):
-                    if isinstance(data, dict):
-                        rx = data.get("rx", 0)
-                        tx = data.get("tx", 0)
-                    else:
-                        rx = tx = 0
-                    table.add_row(
-                        Text(str(packet_type), style="cyan"),
-                        Text(str(rx), style="green"),
-                        Text(str(tx), style="yellow"),
+        # Memory
+        aprsd_stats = stats.get("APRSDStats", {})
+        if aprsd_stats:
+            # Try to get memory values - could be numeric or string
+            mem_current = aprsd_stats.get("memory_current", 0.0)
+            mem_peak = aprsd_stats.get("memory_peak", 0.0)
+
+            # If they're strings, parse them
+            if isinstance(mem_current, str):
+                try:
+                    # Handle both MB and KB units
+                    mem_current_val = (
+                        mem_current.replace(" MB", "").replace(" KB", "").strip()
                     )
-            panel = Panel(
-                table,
-                title="[bold green]Packet Statistics[/bold green]",
-                border_style="green",
-                padding=(1, 2),
-            )
-            output.append(panel)
+                    mem_current = float(mem_current_val) if mem_current_val else 0.0
+                    # Convert KB to MB if needed
+                    if " KB" in mem_current:
+                        mem_current = mem_current / 1024.0
+                except (ValueError, AttributeError):
+                    mem_current = 0.0
 
-        if not output:
-            return Panel(
-                Text("No stats data available", style="dim"),
-                title="[dim]Stats[/dim]",
-                border_style="dim",
-            )
+            if isinstance(mem_peak, str):
+                try:
+                    # Handle both MB and KB units
+                    mem_peak_val = (
+                        mem_peak.replace(" MB", "").replace(" KB", "").strip()
+                    )
+                    mem_peak = float(mem_peak_val) if mem_peak_val else 0.0
+                    # Convert KB to MB if needed
+                    if " KB" in mem_peak:
+                        mem_peak = mem_peak / 1024.0
+                except (ValueError, AttributeError):
+                    mem_peak = 0.0
 
-        # Return Rich Group to preserve colors and spacing
-        return Group(*output)
+            # Ensure they're floats
+            try:
+                mem_current = float(mem_current) if mem_current else 0.0
+                mem_peak = float(mem_peak) if mem_peak else 0.0
+            except (ValueError, TypeError):
+                mem_current = 0.0
+                mem_peak = 0.0
+
+            self.history["memory"]["current"].append(mem_current)
+            self.history["memory"]["peak"].append(mem_peak)
+            self.history["memory"]["time"].append(time_str)
+            if len(self.history["memory"]["time"]) > self.max_history:
+                self.history["memory"]["current"].pop(0)
+                self.history["memory"]["peak"].pop(0)
+                self.history["memory"]["time"].pop(0)
+        else:
+            # If no APRSDStats, append 0
+            self.history["memory"]["current"].append(0.0)
+            self.history["memory"]["peak"].append(0.0)
+            self.history["memory"]["time"].append(time_str)
+            if len(self.history["memory"]["time"]) > self.max_history:
+                self.history["memory"]["current"].pop(0)
+                self.history["memory"]["peak"].pop(0)
+                self.history["memory"]["time"].pop(0)
+
+    def _format_stats(self, stats: dict) -> RenderableType:
+        """Format stats as a rich renderable - now just returns empty since charts are widgets."""
+        # Charts are now widgets, so we don't need to format anything here
+        return Static("")
 
 
 class ConfigTab(ScrollableContainer):
@@ -809,43 +1138,66 @@ class OverviewHeader(Container):
                 self.stats_store.load()
                 stats = self.stats_store.data
 
-            # Get version info
+            # Get version info - admin version is always local
             admin_version = aprsd_admin_extension.__version__
 
-            # Get callsign
-            callsign = CONF.callsign or "N/A"
+            # Get callsign - from remote stats if available, otherwise local config
+            aprsd_stats = stats.get("APRSDStats", {})
+            callsign = aprsd_stats.get("callsign", CONF.callsign or "N/A")
 
             # Get uptime
-            aprsd_stats = stats.get("APRSDStats", {})
             uptime = aprsd_stats.get("uptime", "N/A")
 
-            # Get connection info (same logic as wsgi.py)
+            # Get connection info
+            # If remote, try to get pre-formatted connection string from stats
+            # Otherwise build it from stats data
             client_stats = stats.get("APRSClientStats", {})
-            if CONF.aprs_network.enabled:
-                transport = "aprs-is"
-                if client_stats:
-                    server_string = client_stats.get("server_string", "")
-                    connection = (
-                        f"APRS-IS Server: {server_string}"
-                        if server_string
-                        else "APRS-IS"
-                    )
-                else:
-                    connection = "APRS-IS"
-            else:
-                # We might be connected to a KISS socket?
-                if client.KISSClient.kiss_enabled():
-                    transport = client.KISSClient.transport()
-                    if transport == client.TRANSPORT_TCPKISS:
+            if self.aprsd_url:
+                # For remote, try to get the formatted connection string first
+                connection = client_stats.get("aprs_connection", "")
+                if not connection:
+                    # Fallback: build from available stats data
+                    if client_stats.get("server_string"):
                         connection = (
-                            f"TCPKISS://{CONF.kiss_tcp.host}:{CONF.kiss_tcp.port}"
+                            f"APRS-IS Server: {client_stats.get('server_string')}"
                         )
-                    elif transport == client.TRANSPORT_SERIALKISS:
-                        connection = f"SerialKISS://{CONF.kiss_serial.device}@{CONF.kiss_serial.baudrate} baud"
+                    elif client_stats.get("transport"):
+                        transport = client_stats.get("transport", "Unknown")
+                        if transport == "tcpkiss":
+                            connection = f"TCPKISS://{client_stats.get('host', 'unknown')}:{client_stats.get('port', 'unknown')}"
+                        elif transport == "serialkiss":
+                            connection = f"SerialKISS://{client_stats.get('device', 'unknown')}@{client_stats.get('baudrate', 'unknown')} baud"
+                        else:
+                            connection = transport
                     else:
-                        connection = transport or "Unknown"
+                        connection = "Unknown"
+            else:
+                # For local, use config (same logic as wsgi.py)
+                if CONF.aprs_network.enabled:
+                    transport = "aprs-is"
+                    if client_stats:
+                        server_string = client_stats.get("server_string", "")
+                        connection = (
+                            f"APRS-IS Server: {server_string}"
+                            if server_string
+                            else "APRS-IS"
+                        )
+                    else:
+                        connection = "APRS-IS"
                 else:
-                    connection = "Unknown"
+                    # We might be connected to a KISS socket?
+                    if client.KISSClient.kiss_enabled():
+                        transport = client.KISSClient.transport()
+                        if transport == client.TRANSPORT_TCPKISS:
+                            connection = (
+                                f"TCPKISS://{CONF.kiss_tcp.host}:{CONF.kiss_tcp.port}"
+                            )
+                        elif transport == client.TRANSPORT_SERIALKISS:
+                            connection = f"SerialKISS://{CONF.kiss_serial.device}@{CONF.kiss_serial.baudrate} baud"
+                        else:
+                            connection = transport or "Unknown"
+                    else:
+                        connection = "Unknown"
 
             # Format overview similar to web interface
             overview_text = Text()
