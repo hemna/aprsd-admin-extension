@@ -8,7 +8,7 @@ from datetime import datetime
 
 import aprsd
 import click
-from aprsd import cli_helper, conf
+from aprsd import cli_helper, client, conf
 from aprsd import threads as aprsd_threads
 from aprsd.packets.core import AckPacket, RejectPacket
 from aprsd.threads import service
@@ -30,6 +30,7 @@ from textual.widgets import (
     TabPane,
 )
 
+import aprsd_admin_extension
 from aprsd_admin_extension import cmds
 from aprsd_admin_extension.cmds.ui_common import (
     ErrorDialog,
@@ -97,70 +98,6 @@ class StatsTab(ScrollableContainer):
                 table,
                 title="[bold cyan]APRSD Stats[/bold cyan]",
                 border_style="cyan",
-                padding=(1, 2),
-            )
-            output.append(panel)
-
-        # Threads
-        threads_data = stats.get("APRSDThreadList", {})
-        if threads_data and isinstance(threads_data, dict):
-            thread_count = len(threads_data)
-            table = Table(show_header=True, box=None)
-            table.add_column("Name", style="bold cyan", header_style="bold cyan")
-            table.add_column("Class", style="yellow", header_style="bold yellow")
-            table.add_column("Alive", style="bold green", header_style="bold green")
-            table.add_column("Loop Count", style="magenta", header_style="bold magenta")
-            for name, value in sorted(threads_data.items()):
-                if isinstance(value, dict):
-                    alive = value.get("alive", False)
-                    alive_str = (
-                        Text("✓", style="bold green")
-                        if alive
-                        else Text("✗", style="bold red")
-                    )
-                    table.add_row(
-                        Text(name, style="cyan"),
-                        Text(value.get("class", "N/A"), style="yellow"),
-                        alive_str,
-                        Text(str(value.get("loop_count", 0)), style="magenta"),
-                    )
-            panel = Panel(
-                table,
-                title=f"[bold yellow]Threads[/bold yellow] [dim]({thread_count})[/dim]",
-                border_style="yellow",
-                padding=(1, 2),
-            )
-            output.append(panel)
-
-        # Plugins
-        plugins_data = stats.get("PluginManager", {})
-        if plugins_data and isinstance(plugins_data, dict):
-            plugin_count = len(plugins_data)
-            table = Table(show_header=True, box=None)
-            table.add_column("Name", style="bold cyan", header_style="bold cyan")
-            table.add_column("Enabled", style="bold green", header_style="bold green")
-            table.add_column("Version", style="yellow", header_style="bold yellow")
-            table.add_column("TX", style="bold magenta", header_style="bold magenta")
-            table.add_column("RX", style="bold blue", header_style="bold blue")
-            for name, value in sorted(plugins_data.items()):
-                if isinstance(value, dict):
-                    enabled = value.get("enabled", False)
-                    enabled_str = (
-                        Text("✓", style="bold green")
-                        if enabled
-                        else Text("✗", style="bold red")
-                    )
-                    table.add_row(
-                        Text(name, style="cyan"),
-                        enabled_str,
-                        Text(value.get("version", "N/A"), style="yellow"),
-                        Text(str(value.get("tx", 0)), style="magenta"),
-                        Text(str(value.get("rx", 0)), style="blue"),
-                    )
-            panel = Panel(
-                table,
-                title=f"[bold blue]Plugins[/bold blue] [dim]({plugin_count})[/dim]",
-                border_style="blue",
                 padding=(1, 2),
             )
             output.append(panel)
@@ -306,6 +243,82 @@ class ConfigTab(ScrollableContainer):
                     border_style="red",
                 )
                 self.query_one("#config_content", Static).update(error_msg)
+
+
+class ThreadsTab(ScrollableContainer):
+    """Threads tab showing thread information."""
+
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="threads_content")
+
+    def on_mount(self) -> None:
+        self.refresh_threads()
+        self.set_interval(5.0, self.refresh_threads)
+
+    def refresh_threads(self) -> None:
+        try:
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
+            content = self._format_threads(stats)
+            self.query_one("#threads_content", Static).update(content)
+        except Exception as e:
+            LOG.error(f"Error refreshing threads: {e}")
+            self.query_one("#threads_content", Static).update(
+                Panel(
+                    Text(f"Error loading threads: {e}", style="bold red"),
+                    title="[bold red]Error[/bold red]",
+                    border_style="red",
+                )
+            )
+
+    def _format_threads(self, stats: dict) -> RenderableType:
+        """Format threads as a rich renderable with panels."""
+        threads_data = stats.get("APRSDThreadList", {})
+        if not threads_data or not isinstance(threads_data, dict):
+            return Panel(
+                Text("No threads data available", style="dim"),
+                title="[dim]Threads[/dim]",
+                border_style="dim",
+            )
+
+        thread_count = len(threads_data)
+        table = Table(show_header=True, box=None)
+        table.add_column("Name", style="bold cyan", header_style="bold cyan")
+        table.add_column("Class", style="yellow", header_style="bold yellow")
+        table.add_column("Alive", style="bold green", header_style="bold green")
+        table.add_column("Loop Count", style="magenta", header_style="bold magenta")
+
+        for name, value in sorted(threads_data.items()):
+            if isinstance(value, dict):
+                alive = value.get("alive", False)
+                alive_str = (
+                    Text("✓", style="bold green")
+                    if alive
+                    else Text("✗", style="bold red")
+                )
+                table.add_row(
+                    Text(name, style="cyan"),
+                    Text(value.get("class", "N/A"), style="yellow"),
+                    alive_str,
+                    Text(str(value.get("loop_count", 0)), style="magenta"),
+                )
+
+        panel = Panel(
+            table,
+            title=f"[bold yellow]Threads[/bold yellow] [dim]({thread_count})[/dim]",
+            border_style="yellow",
+            padding=(1, 2),
+        )
+
+        return panel
 
 
 class PluginsTab(ScrollableContainer):
@@ -758,12 +771,125 @@ class WatchListTab(ScrollableContainer):
         return panel
 
 
+class OverviewHeader(Container):
+    """Overview header showing app name, callsign, version, and uptime."""
+
+    DEFAULT_CSS = """
+    OverviewHeader {
+        height: 4;
+        min-height: 4;
+        max-height: 4;
+        border-bottom: solid $primary;
+        padding: 1;
+    }
+    #overview_content {
+        width: 100%;
+        height: 100%;
+    }
+    """
+
+    def __init__(self, aprsd_url: str = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.aprsd_url = aprsd_url
+        self.stats_store = stats_threads.StatsStore() if not aprsd_url else None
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="overview_content")
+
+    def on_mount(self) -> None:
+        self.refresh_overview()
+        self.set_interval(5.0, self.refresh_overview)
+
+    def refresh_overview(self) -> None:
+        try:
+            # Get stats for uptime and connection info
+            if self.aprsd_url:
+                stats = fetch_stats_from_url(self.aprsd_url)
+            else:
+                self.stats_store.load()
+                stats = self.stats_store.data
+
+            # Get version info
+            admin_version = aprsd_admin_extension.__version__
+
+            # Get callsign
+            callsign = CONF.callsign or "N/A"
+
+            # Get uptime
+            aprsd_stats = stats.get("APRSDStats", {})
+            uptime = aprsd_stats.get("uptime", "N/A")
+
+            # Get connection info (same logic as wsgi.py)
+            client_stats = stats.get("APRSClientStats", {})
+            if CONF.aprs_network.enabled:
+                transport = "aprs-is"
+                if client_stats:
+                    server_string = client_stats.get("server_string", "")
+                    connection = (
+                        f"APRS-IS Server: {server_string}"
+                        if server_string
+                        else "APRS-IS"
+                    )
+                else:
+                    connection = "APRS-IS"
+            else:
+                # We might be connected to a KISS socket?
+                if client.KISSClient.kiss_enabled():
+                    transport = client.KISSClient.transport()
+                    if transport == client.TRANSPORT_TCPKISS:
+                        connection = (
+                            f"TCPKISS://{CONF.kiss_tcp.host}:{CONF.kiss_tcp.port}"
+                        )
+                    elif transport == client.TRANSPORT_SERIALKISS:
+                        connection = f"SerialKISS://{CONF.kiss_serial.device}@{CONF.kiss_serial.baudrate} baud"
+                    else:
+                        connection = transport or "Unknown"
+                else:
+                    connection = "Unknown"
+
+            # Format overview similar to web interface
+            overview_text = Text()
+            overview_text.append("APRSD Admin ", style="bold white")
+            overview_text.append(f"v{admin_version} ", style="dim cyan")
+            overview_text.append(f"{callsign} ", style="bold cyan")
+            overview_text.append("connected to ", style="dim")
+            overview_text.append(f"{connection} ", style="yellow")
+            overview_text.append(f"uptime: {uptime}", style="dim green")
+
+            self.query_one("#overview_content", Static).update(overview_text)
+        except Exception as e:
+            LOG.error(f"Error refreshing overview: {e}")
+            # Show basic info even if stats fail
+            admin_version = aprsd_admin_extension.__version__
+            callsign = CONF.callsign or "N/A"
+            overview_text = Text()
+            overview_text.append("APRSD Admin ", style="bold white")
+            overview_text.append(f"v{admin_version} ", style="dim cyan")
+            overview_text.append(f"{callsign}", style="bold cyan")
+            self.query_one("#overview_content", Static).update(overview_text)
+
+
 class APRSDAdminApp(App):
     """A Textual application for APRSD admin interface."""
 
     CSS = """
     Screen {
         layout: vertical;
+    }
+    Header {
+        dock: top;
+    }
+    #overview_header {
+        height: 4;
+        min-height: 4;
+        max-height: 4;
+        border-bottom: solid $primary;
+    }
+    #main_tabs {
+        height: 1fr;
+    }
+    Footer {
+        dock: bottom;
     }
     """
 
@@ -781,6 +907,7 @@ class APRSDAdminApp(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header(show_clock=True)
+        yield OverviewHeader(aprsd_url=self.aprsd_url, id="overview_header")
         yield TabbedContent(id="main_tabs")
         yield Footer()
 
@@ -813,6 +940,9 @@ class APRSDAdminApp(App):
             TabPane(
                 "Watch List", WatchListTab(aprsd_url=self.aprsd_url), id="watchlist_tab"
             )
+        )
+        tabbed_content.add_pane(
+            TabPane("Threads", ThreadsTab(aprsd_url=self.aprsd_url), id="threads_tab")
         )
         tabbed_content.add_pane(
             TabPane("Plugins", PluginsTab(aprsd_url=self.aprsd_url), id="plugins_tab")
