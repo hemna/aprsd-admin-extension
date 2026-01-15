@@ -525,14 +525,29 @@ class APRSDStatsApp(App):
 
         # Create error message
         message = f"Failed to fetch stats from URL:\n\n{self.aprsd_url}\n\nError: {error_message}\n\nPlease check the URL and try again."
-        dialog = ErrorDialog(message, title="URL Connection Error")
 
-        # Mount as a screen overlay
-        from textual.screen import Screen
+        # Schedule showing the error dialog after the app is fully mounted
+        # Use a small delay to ensure the app is ready
+        def show_error():
+            from textual.screen import Screen
 
-        error_screen = Screen()
-        error_screen.mount(dialog)
-        self.push_screen(error_screen)
+            class ErrorScreen(Screen):
+                """Screen that displays an error dialog."""
+
+                DEFAULT_CSS = """
+                ErrorScreen {
+                    align: center middle;
+                }
+                """
+
+                def compose(self):
+                    """Compose the error screen with dialog."""
+                    yield ErrorDialog(message, title="URL Connection Error")
+
+            self.push_screen(ErrorScreen())
+
+        # Use set_timer to schedule after mount is complete
+        self.set_timer(0.1, show_error)
 
     def refresh_stats(self) -> None:
         """Refresh stats from the stats store or URL."""
