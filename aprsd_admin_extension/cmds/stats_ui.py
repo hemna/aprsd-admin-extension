@@ -15,7 +15,11 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Footer, Header, Static
 
 from aprsd_admin_extension import cmds
-from aprsd_admin_extension.cmds.ui_common import ErrorDialog, fetch_stats_from_url
+from aprsd_admin_extension.cmds.ui_common import (
+    ErrorDialog,
+    OverviewHeader,
+    fetch_stats_from_url,
+)
 
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
@@ -444,6 +448,18 @@ class APRSDStatsApp(App):
     CSS = """
     Screen {
         background: $surface;
+        layout: vertical;
+    }
+
+    Header {
+        dock: top;
+    }
+
+    #overview_header {
+        height: 4;
+        min-height: 4;
+        max-height: 4;
+        border-bottom: solid $primary;
     }
 
     Container {
@@ -471,6 +487,10 @@ class APRSDStatsApp(App):
         width: 1fr;
         height: 1fr;
     }
+
+    Footer {
+        dock: bottom;
+    }
     """
 
     BINDINGS = [
@@ -491,6 +511,9 @@ class APRSDStatsApp(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header(show_clock=True)
+        yield OverviewHeader(
+            aprsd_url=self.aprsd_url, app_name="APRSD Stats", id="overview_header"
+        )
         with Container():
             with Horizontal():
                 with Vertical():
