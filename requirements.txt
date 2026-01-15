@@ -4,4 +4,6 @@ flask
 Flask-HTTPAuth
 oslo_config
 python-socketio
+textual
+rich
 werkzeug
