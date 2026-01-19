@@ -16,6 +16,8 @@ from aprsd.threads import service
 from loguru import logger
 from oslo_config import cfg
 
+from aprsd_admin_extension import __version__ as aprsd_admin_extension_version
+
 # Import the extension's configuration options
 from aprsd_admin_extension import (  # noqa
     cmds,
@@ -70,6 +72,7 @@ def web(ctx):
     else:
         LOG.info(msg)
     LOG.info(f"APRSD Started version: {aprsd.__version__}")
+    LOG.info(f"APRSD Admin Extension version: {aprsd_admin_extension_version}")
     # Dump all the config options now.
     CONF.log_opt_values(LOG, logging.DEBUG)
 
