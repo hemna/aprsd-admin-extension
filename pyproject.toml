@@ -20,7 +20,7 @@ description = "Administration extension for the Ham radio APRSD Server"
 # https://packaging.python.org/guides/distributing-packages-using-setuptools/#python-requires
 requires-python = ">=3.11"
 
-dynamic = ["version", "dependencies", "optional-dependencies"]
+dynamic = ["version"]
 
 # This is an optional longer description of your project that represents
 # the body of text which users will see when they visit PyPI.
@@ -82,10 +82,10 @@ classifiers = [
     "Topic :: Internet",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 # This field lists other packages that your project depends on to run.
@@ -94,9 +94,15 @@ classifiers = [
 #
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
-[tool.setuptools.dynamic]
-dependencies = {file = ["./requirements.txt"]}
-optional-dependencies.dev = {file = ["./requirements-dev.txt"]}
+dependencies = [
+    "aprsd>=4.2.4",
+    "click",
+    "flask",
+    "Flask-HTTPAuth",
+    "oslo_config",
+    "python-socketio",
+    "werkzeug",
+]
 
 # List additional groups of dependencies here (e.g. development
 # dependencies). Users will be able to install these using the "extras"
@@ -107,7 +113,21 @@ optional-dependencies.dev = {file = ["./requirements-dev.txt"]}
 # Optional dependencies the project provides. These are commonly
 # referred to as "extras". For a more extensive definition see:
 # https://packaging.python.org/en/latest/specifications/dependency-specifiers/#extras
-# [project.optional-dependencies]
+[project.optional-dependencies]
+dev = [
+    "pip",
+    "pip-tools",
+    "bump2version",
+    "wheel",
+    "watchdog",
+    "ruff",
+    "tox",
+    "coverage",
+    "Sphinx",
+    "twine",
+    "pytest>=8.0",
+    "mypy",
+]
 
 # List URLs that are relevant to your project
 #
@@ -131,6 +151,9 @@ Documentation = "https://aprsd-admin-extension.readthedocs.io/en/latest/"
 
 [project.entry-points."oslo.config.opts"]
     "aprsd_admin_extension.conf" = "aprsd_admin_extension.conf.opts:list_opts"
+
+[project.scripts]
+    "aprsd-admin-extension-export-config" = "aprsd_admin_extension.cli:main"
 
 # If you are using a different build backend, you will need to change this.
 [tool.setuptools]

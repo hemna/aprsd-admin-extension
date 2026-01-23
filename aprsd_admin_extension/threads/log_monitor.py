@@ -2,12 +2,11 @@ import datetime
 import logging
 import threading
 
+import requests
+import wrapt
 from aprsd import threads
 from aprsd.log import log
 from oslo_config import cfg
-import requests
-import wrapt
-
 
 CONF = cfg.CONF
 LOG = logging.getLogger("APRSD")
@@ -41,7 +40,9 @@ class LogEntries:
     _instance = None
     last_purge = datetime.datetime.now()
     max_delta = datetime.timedelta(
-        hours=0.0, minutes=0, seconds=2,
+        hours=0.0,
+        minutes=0,
+        seconds=2,
     )
 
     def __new__(cls, *args, **kwargs):
@@ -67,10 +68,7 @@ class LogEntries:
 
     def is_purge_ready(self):
         now = datetime.datetime.now()
-        if (
-            now - self.last_purge > self.max_delta
-            and len(self.entries) > 1
-        ):
+        if now - self.last_purge > self.max_delta and len(self.entries) > 1:
             return True
         return False
 
@@ -80,7 +78,6 @@ class LogEntries:
 
 
 class LogMonitorThread(threads.APRSDThread):
-
     def __init__(self):
         super().__init__("LogMonitorThread")
 

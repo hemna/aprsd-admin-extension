@@ -17,7 +17,7 @@ from aprsd.utils import json as aprsd_json
 from flask import Flask, request
 from flask_httpauth import HTTPBasicAuth
 from oslo_config import cfg, generator
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 import aprsd_admin_extension
 
@@ -54,6 +54,20 @@ def verify_password(username, password):
         return username
 
 
+def _load_users_from_config():
+    """Load users from config and populate the global users dictionary."""
+    global users
+    username = CONF.aprsd_admin_extension.user
+    password = CONF.aprsd_admin_extension.password
+
+    if username and password:
+        # Hash the password before storing it
+        users[username] = generate_password_hash(password)
+        LOG.info(f"Loaded admin user '{username}' from config")
+    else:
+        LOG.warning("No admin credentials found in config")
+
+
 def _stats():
     stats_obj = stats_threads.StatsStore()
     stats_obj.load()
@@ -65,12 +79,14 @@ def _stats():
     }
 
 
+@auth.login_required
 @app.route("/stats")
 def stats():
     LOG.debug("/stats called")
     return json.dumps(_stats(), cls=aprsd_json.SimpleJSONEncoder)
 
 
+@auth.login_required
 @app.route("/")
 def index():
     stats = _stats()
@@ -86,8 +102,8 @@ def index():
         else:
             aprs_connection = "APRS-IS"
         aprs_connection = (
-            "APRS-IS Server: <a href='http://status.aprs2.net' >" "{}</a>".format(
-                aprs_connection
+            "APRS-IS Server: <a href='http://status.aprs2.net' >{}</a>".format(
+                aprs_connection,
             )
         )
     else:
@@ -289,6 +305,9 @@ def init_app(config_file=None, log_level=None, socket_io=None, init_config=True)
 
     if not log_level:
         log_level = CONF.logging.log_level
+
+    # Load users from config after config is initialized
+    _load_users_from_config()
 
     return log_level
 

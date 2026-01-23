@@ -17,4 +17,7 @@ def _check_version():
         # probably can't get in touch with pypi for some reason
         # Lets put up an error and move on.  We might not
         # have internet in this aprsd deployment.
-        return 1, "Couldn't check for new version of APRSD Extension (aprsd-admin-extension)"
+        return (
+            1,
+            "Couldn't check for new version of APRSD Extension (aprsd-admin-extension)",
+        )
